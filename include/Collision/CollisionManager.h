@@ -8,10 +8,13 @@ namespace Collision{
     class Manager{
         std::unordered_set<Collider*> colliders_;
         std::shared_mutex mutex_;
+        uint32_t maxThreadCount_ {std::thread::hardware_concurrency()};
 
     public:
 	    void Register(Collider* c);
         void Unregister(Collider* c);
+
+
     };
 }
 

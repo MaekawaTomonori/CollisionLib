@@ -3,13 +3,14 @@
 #include <shared_mutex>
 #include <variant>
 
-#include "Math.h"
+#include "sys/Mathematics.h"
 
-namespace Collision{
+namespace Collision {
+	class Manager;
 	class Collider;
 
 	enum class Type{
-		Box,
+		AABB,
 		Sphere,
 
 		None
@@ -26,26 +27,29 @@ namespace Collision{
         const Collider* other_;
 
 	public:
-		Event(Type, Collider*);
+		Event(EventType, const Collider*);
 		EventType GetType() const;
-		Collider* GetOther() const;
+        const Collider* GetOther() const;
 	};
 
     class Collider{
     	using Size = std::variant<float, Vector3>;
 		using CBFunc = std::function<void(const Collider*)>;
 
+		std::atomic<bool> enable_ = false;
     	std::atomic<bool> registered_ = false;
 		std::shared_mutex mutex_;
 
         Type type_ = Type::None;
-		bool enable_ = true;
 		Vector3 translate_{};
         Size size_ {};
+
+        Manager* manager_ = nullptr;
 
 		std::array<CBFunc, 3> onCollisions_;
 
 	public:
+		Collider();
 		void Enable();
 		void Disable();
 
@@ -54,9 +58,10 @@ namespace Collision{
 
 		bool IsRegistered() const;
 
-        Collider* SetType(Type _type);
+		Collider* Register();
+        Collider* SetType(const Type _type);
         Collider* SetTranslate(const Vector3& _translate);
-    	Collider* SetSize(Size _size);
+    	Collider* SetSize(const Size _size);
         Collider* SetOnCollision(EventType _event, std::function<void(const Collider*)> _callback);
 
         void OnCollision(Event _event) const;

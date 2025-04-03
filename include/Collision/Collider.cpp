@@ -2,7 +2,24 @@
 
 #include <utility>
 
+#include "CollisionManager.h"
+#include "sys/Singleton.h"
+
 namespace Collision{
+	Event::Event(EventType _type, const Collider* _collider) :type_(_type), other_(_collider) {
+	}
+
+	EventType Event::GetType() const {
+        return type_;
+	}
+
+	const Collider* Event::GetOther() const {
+        return other_;
+	}
+
+	Collider::Collider() :manager_(Singleton<Manager>::Get()){
+	}
+
     void Collider::Enable() {
         enable_ = true;
     }
@@ -23,7 +40,13 @@ namespace Collision{
         return registered_;
     }
 
-    Collider* Collider::SetType(Type _type) {
+    Collider* Collider::Register() {
+        manager_->Register(this);
+        registered_ = true;
+        return this;
+    }
+
+    Collider* Collider::SetType(const Type _type) {
         type_ = _type;
         return this;
     }
@@ -33,7 +56,7 @@ namespace Collision{
         return this;
     }
 
-    Collider* Collider::SetSize(Size _size) {
+    Collider* Collider::SetSize(const Size _size) {
         size_ = _size;
         return this;
     }
@@ -43,7 +66,7 @@ namespace Collision{
         return this;
 	}
 
-	void Collider::OnCollision(Event _event) const {
+	void Collider::OnCollision(const Event _event) const {
 		if (const CBFunc callback = onCollisions_[static_cast<int>(_event.GetType())]){
             callback(_event.GetOther());
         }
