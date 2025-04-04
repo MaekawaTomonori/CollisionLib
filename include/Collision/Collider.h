@@ -40,6 +40,8 @@ namespace Collision {
     	std::atomic<bool> registered_ = false;
 		std::shared_mutex mutex_;
 
+		std::string uuid_;
+
         Type type_ = Type::None;
 		Vector3 translate_{};
         Size size_ {};
@@ -48,8 +50,12 @@ namespace Collision {
 
 		std::array<CBFunc, 3> onCollisions_;
 
+		uint32_t attribute_ = 0b0;
+		uint32_t ignore_ = 0b0;
+
 	public:
 		Collider();
+		~Collider();
 		void Enable();
 		void Disable();
 
@@ -58,12 +64,22 @@ namespace Collision {
 
 		bool IsRegistered() const;
 
-		Collider* Register();
         Collider* SetType(const Type _type);
         Collider* SetTranslate(const Vector3& _translate);
     	Collider* SetSize(const Size _size);
         Collider* SetOnCollision(EventType _event, std::function<void(const Collider*)> _callback);
+        Collider* AddAttribute(uint32_t _attribute);
+        Collider* RemoveAttribute(uint32_t _attribute);
+        Collider* AddIgnore(uint32_t _ignore);
+        Collider* RemoveIgnore(uint32_t _ignore);
 
         void OnCollision(Event _event) const;
+
+		std::string GetUniqueId() const;
+        Type GetType() const;
+        uint32_t GetAttribute() const;
+        uint32_t GetIgnore() const;
+        Size GetSize() const;
+        Vector3 GetTranslate() const;
     };
 }

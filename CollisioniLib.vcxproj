@@ -23,12 +23,14 @@
     <ClInclude Include="include\Collision\CollisionManager.h" />
     <ClInclude Include="include\sys\Mathematics.h" />
     <ClInclude Include="include\sys\Singleton.h" />
+    <ClInclude Include="include\sys\System.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\Collision\Collider.cpp" />
     <ClCompile Include="include\Collision\CollisionManager.cpp" />
     <ClCompile Include="include\sys\Mathematics.cpp" />
     <ClCompile Include="include\sys\Singleton.cpp" />
+    <ClCompile Include="include\sys\System.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

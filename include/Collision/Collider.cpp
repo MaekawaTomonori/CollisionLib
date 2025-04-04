@@ -4,6 +4,7 @@
 
 #include "CollisionManager.h"
 #include "sys/Singleton.h"
+#include "sys/System.h"
 
 namespace Collision{
 	Event::Event(EventType _type, const Collider* _collider) :type_(_type), other_(_collider) {
@@ -18,9 +19,20 @@ namespace Collision{
 	}
 
 	Collider::Collider() :manager_(Singleton<Manager>::Get()){
+        uuid_ = System::CreateUniqueId();
+        if (!manager_->Register(this)){
+            throw std::runtime_error("Failed to register collider");
+        }
+        registered_ = true;
 	}
 
-    void Collider::Enable() {
+	Collider::~Collider() {
+        if (!manager_->Unregister(this)){
+            //WARNING
+        }
+	}
+
+	void Collider::Enable() {
         enable_ = true;
     }
 
@@ -38,12 +50,6 @@ namespace Collision{
 
     bool Collider::IsRegistered() const{
         return registered_;
-    }
-
-    Collider* Collider::Register() {
-        manager_->Register(this);
-        registered_ = true;
-        return this;
     }
 
     Collider* Collider::SetType(const Type _type) {
@@ -66,9 +72,53 @@ namespace Collision{
         return this;
 	}
 
+	Collider* Collider::AddAttribute(const uint32_t _attribute) {
+        attribute_ |= _attribute;
+        return this;
+	}
+
+	Collider* Collider::RemoveAttribute(const uint32_t _attribute) {
+        attribute_ &= ~_attribute;
+        return this;
+	}
+
+	Collider* Collider::AddIgnore(const uint32_t _ignore) {
+        ignore_ |= _ignore;
+        return this;
+	}
+
+	Collider* Collider::RemoveIgnore(const uint32_t _ignore) {
+        ignore_ &= ~_ignore;
+        return this;
+	}
+
 	void Collider::OnCollision(const Event _event) const {
 		if (const CBFunc callback = onCollisions_[static_cast<int>(_event.GetType())]){
             callback(_event.GetOther());
         }
+    }
+
+	std::string Collider::GetUniqueId() const {
+        return uuid_;
+	}
+
+	Type Collider::GetType() const {
+        return type_;
+	}
+
+    uint32_t Collider::GetAttribute() const {
+        return attribute_;
+	}
+
+    uint32_t Collider::GetIgnore() const {
+        return ignore_;
+    }
+
+    Collider::Size Collider::GetSize() const {
+        return size_;
+    }
+
+    Vector3 Collider::GetTranslate() const {
+        return translate_;
     }
 }
