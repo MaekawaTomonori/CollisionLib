@@ -2,12 +2,12 @@
 
 namespace Collision {
     // ê√ìIÉÅÉìÉoÇÃíËã`
-    const Vector3 Vector3::Zero = Vector3(0.0f, 0.0f, 0.0f);
-    const Vector3 Vector3::One = Vector3(1.0f, 1.0f, 1.0f);
-    const Vector3 Vector3::Up = Vector3(0.0f, 1.0f, 0.0f);
-    const Vector3 Vector3::Down = Vector3(0.0f, -1.0f, 0.0f);
-    const Vector3 Vector3::Left = Vector3(-1.0f, 0.0f, 0.0f);
-    const Vector3 Vector3::Right = Vector3(1.0f, 0.0f, 0.0f);
-    const Vector3 Vector3::Forward = Vector3(0.0f, 0.0f, 1.0f);
-    const Vector3 Vector3::Backward = Vector3(0.0f, 0.0f, -1.0f);
+    const Vec3 Vec3::Zero = Vec3(0.0f, 0.0f, 0.0f);
+    const Vec3 Vec3::One = Vec3(1.0f, 1.0f, 1.0f);
+    const Vec3 Vec3::Up = Vec3(0.0f, 1.0f, 0.0f);
+    const Vec3 Vec3::Down = Vec3(0.0f, -1.0f, 0.0f);
+    const Vec3 Vec3::Left = Vec3(-1.0f, 0.0f, 0.0f);
+    const Vec3 Vec3::Right = Vec3(1.0f, 0.0f, 0.0f);
+    const Vec3 Vec3::Forward = Vec3(0.0f, 0.0f, 1.0f);
+    const Vec3 Vec3::Backward = Vec3(0.0f, 0.0f, -1.0f);
 }

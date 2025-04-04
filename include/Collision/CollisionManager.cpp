@@ -129,7 +129,7 @@ namespace Collision {
             // AABB vs Sphere
             const auto& aabb = sp1 ? _c2 : _c1;
             const auto& sphere = sp1 ? _c1 : _c2;
-            const auto& aabbSize = std::get<Vector3>(aabb->GetSize());
+            const auto& aabbSize = std::get<Vec3>(aabb->GetSize());
             const auto& aabbTranslate = aabb->GetTranslate();
             const auto& sphereSize = std::get<float>(sphere->GetSize());
             const auto& sphereTranslate = sphere->GetTranslate();
@@ -140,8 +140,8 @@ namespace Collision {
 
         } else if (!sp1 && !sp2){
             // AABB vs AABB
-            auto size1 = std::get<Vector3>(_c1->GetSize());
-            auto size2 = std::get<Vector3>(_c2->GetSize());
+            auto size1 = std::get<Vec3>(_c1->GetSize());
+            auto size2 = std::get<Vec3>(_c2->GetSize());
             return (std::abs(_c1->GetTranslate().x - _c2->GetTranslate().x) < size1.x + size2.x) &&
                 (std::abs(_c1->GetTranslate().y - _c2->GetTranslate().y) < size1.y + size2.y) &&
                 (std::abs(_c1->GetTranslate().z - _c2->GetTranslate().z) < size1.z + size2.z);

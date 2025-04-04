@@ -57,7 +57,7 @@ namespace Collision{
         return this;
     }
 
-    Collider* Collider::SetTranslate(const Vector3& _translate) {
+    Collider* Collider::SetTranslate(const Vec3& _translate) {
         translate_ = _translate;
         return this;
     }
@@ -118,7 +118,7 @@ namespace Collision{
         return size_;
     }
 
-    Vector3 Collider::GetTranslate() const {
+    Vec3 Collider::GetTranslate() const {
         return translate_;
     }
 }

@@ -33,7 +33,7 @@ namespace Collision {
 	};
 
     class Collider{
-    	using Size = std::variant<float, Vector3>;
+    	using Size = std::variant<float, Vec3>;
 		using CBFunc = std::function<void(const Collider*)>;
 
 		std::atomic<bool> enable_ = false;
@@ -43,7 +43,7 @@ namespace Collision {
 		std::string uuid_;
 
         Type type_ = Type::None;
-		Vector3 translate_{};
+		Vec3 translate_{};
         Size size_ {};
 
         Manager* manager_ = nullptr;
@@ -65,7 +65,7 @@ namespace Collision {
 		bool IsRegistered() const;
 
         Collider* SetType(const Type _type);
-        Collider* SetTranslate(const Vector3& _translate);
+        Collider* SetTranslate(const Vec3& _translate);
     	Collider* SetSize(const Size _size);
         Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
         Collider* AddAttribute(uint32_t _attribute);
@@ -80,6 +80,6 @@ namespace Collision {
         uint32_t GetAttribute() const;
         uint32_t GetIgnore() const;
         Size GetSize() const;
-        Vector3 GetTranslate() const;
+        Vec3 GetTranslate() const;
     };
 }
