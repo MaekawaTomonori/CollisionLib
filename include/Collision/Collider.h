@@ -67,7 +67,7 @@ namespace Collision {
         Collider* SetType(const Type _type);
         Collider* SetTranslate(const Vector3& _translate);
     	Collider* SetSize(const Size _size);
-        Collider* SetOnCollision(EventType _event, std::function<void(const Collider*)> _callback);
+        Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
         Collider* AddAttribute(uint32_t _attribute);
         Collider* RemoveAttribute(uint32_t _attribute);
         Collider* AddIgnore(uint32_t _ignore);

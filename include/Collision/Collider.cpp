@@ -67,7 +67,7 @@ namespace Collision{
         return this;
     }
 
-	Collider* Collider::SetOnCollision(EventType _event, std::function<void(const Collider*)> _callback) {
+	Collider* Collider::SetEvent(EventType _event, std::function<void(const Collider*)> _callback) {
         onCollisions_[static_cast<int>(_event)] = std::move(_callback);
         return this;
 	}

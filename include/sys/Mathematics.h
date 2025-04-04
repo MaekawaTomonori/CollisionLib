@@ -229,8 +229,7 @@ namespace Collision {// 3ŽŸŒ³ƒxƒNƒgƒ‹
         Vector3 min;
         Vector3 max;
 
-        AABB()
-            : min(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()),
+        AABB(): min(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()),
             max(std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()) {
         }
 
