@@ -1,8 +1,72 @@
-#include "CollisionManager.h"
+﻿#include "CollisionManager.h"
 
 #include <algorithm>
 
-namespace Collision {
+namespace Collision{
+    Manager::Manager() {
+        InitThreadPool();
+    }
+
+    Manager::~Manager() {
+        // スレッドプールを停止
+        running_ = false;
+        condition_.notify_all();
+
+        // すべてのスレッドが終了するのを待つ
+        for (auto& thread : threadPool_){
+            if (thread.joinable()){
+                thread.join();
+            }
+        }
+    }
+
+    void Manager::InitThreadPool() {
+        for (uint32_t i = 0; i < maxThreadCount_; ++i){
+            threadPool_.emplace_back(&Manager::WorkerThread, this);
+        }
+    }
+
+    void Manager::WorkerThread() {
+        while (running_){
+            std::function<void()> task;
+            {
+                std::unique_lock<std::mutex> lock(queueMutex_);
+                condition_.wait(lock, [this]{
+                    return !taskQueue_.empty() || !running_;
+                });
+
+                if (!running_ && taskQueue_.empty()){
+                    return;
+                }
+
+                if (!taskQueue_.empty()){
+                    task = std::move(taskQueue_.front());
+                    taskQueue_.pop();
+                }
+            }
+
+            if (task){
+                task();
+            }
+        }
+    }
+
+    void Manager::AddTask(std::function<void()> task) {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex_);
+            taskQueue_.push(std::move(task));
+        }
+        condition_.notify_one();
+    }
+
+    void Manager::WaitForTasks() {
+        // すべてのタスクが完了するのを待つ
+        std::unique_lock<std::mutex> lock(queueMutex_);
+        condition_.wait(lock, [this]{
+            return taskQueue_.empty();
+        });
+    }
+
     bool Manager::Register(Collider* c) {
         if (!c) return false;
 
@@ -22,7 +86,7 @@ namespace Collision {
         colliders_.erase(c->GetUniqueId());
 
         auto it = std::ranges::remove_if(detectedPair_,
-                                 [&c](const Pair& pair){
+                                         [&c](const Pair& pair){
             return pair.first == c->GetUniqueId() || pair.second == c->GetUniqueId();
         });
 
@@ -46,16 +110,20 @@ namespace Collision {
 
         const size_t count = array.size();
         std::vector<Pair> results(maxThreadCount_);
-        std::vector<std::thread> threads;
+        std::mutex resultsMutex;
 
         const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
 
-        for (uint32_t t = 0; t < std::min(maxThreadCount_, static_cast<uint32_t>(count)); ++t){
+        std::atomic<int> tasksCompleted = 0;
+        int totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
+
+        for (uint32_t t = 0; t < totalTasks; ++t){
             const size_t start = t * chunkSize;
             const size_t end = std::min(start + chunkSize, count);
-            threads.emplace_back([this, &array, &results, start, end, t](){
-                Pair result;
-                for (size_t i = start; i < end; ++i){
+            const uint32_t threadIndex = t;
+
+            AddTask([this, &array, &results, &resultsMutex, start, end, threadIndex, &tasksCompleted](){
+	            for (size_t i = start; i < end; ++i){
                     const auto& [id1, c1] = array[i];
 
                     for (size_t j = i + 1; j < array.size(); ++j){
@@ -64,17 +132,22 @@ namespace Collision {
                         if (!Filter({id1, id2}))continue;
 
                         if (Detect(c1, c2)){
-                            result = {id1, id2};
+                            Pair result = {id1, id2};
+
+                            std::unique_lock lockResult(resultsMutex);
+                            if (!result.first.empty() && !result.second.empty()){
+                                results[threadIndex] = std::move(result);
+                            }
                         }
                     }
                 }
-                std::unique_lock lock(mutex_);
-                results[t] = std::move(result);
+                ++tasksCompleted;
             });
         }
 
-        for (auto& thread : threads){
-            thread.join();
+        // すべてのタスクが完了するのを待つ（別の方法）
+        while (tasksCompleted < totalTasks){
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
         {
@@ -122,7 +195,7 @@ namespace Collision {
     }
 
     bool Manager::Filter(const Pair& _pair) const {
-    	auto itr = colliders_.find(_pair.first);
+        auto itr = colliders_.find(_pair.first);
         auto otr = colliders_.find(_pair.second);
 
         if (itr == colliders_.end() || otr == colliders_.end())return false;
@@ -135,11 +208,12 @@ namespace Collision {
         if (c1->GetAttribute() & c2->GetIgnore() || c1->GetIgnore() & c2->GetAttribute()) return false;
         return true;
     }
+
     bool Manager::Detect(const Collider* _c1, const Collider* _c2) {
         bool sp1 = std::holds_alternative<float>(_c1->GetSize());
         bool sp2 = std::holds_alternative<float>(_c2->GetSize());
-    	if (sp1 && sp2){
-    		// Sphere vs Sphere
+        if (sp1 && sp2){
+            // Sphere vs Sphere
             return (_c1->GetTranslate() - _c2->GetTranslate()).Length() <= (std::get<float>(_c1->GetSize()) + std::get<float>(_c2->GetSize()));
         } else if (sp1 && !sp2 || !sp1 && sp2){
             // AABB vs Sphere
@@ -163,6 +237,6 @@ namespace Collision {
                 (std::abs(_c1->GetTranslate().z - _c2->GetTranslate().z) < size1.z + size2.z);
         }
 
-    	return false;
+        return false;
     }
 }
