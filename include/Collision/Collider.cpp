@@ -1,8 +1,10 @@
 #include "Collider.h"
 
+#include <format>
 #include <utility>
 
 #include "CollisionManager.h"
+#include "../../../Engine/project/engine/func/commonFunc/Logger.h"
 #include "sys/Singleton.h"
 #include "sys/System.h"
 
@@ -94,6 +96,7 @@ namespace Collision{
 
 	void Collider::OnCollision(const Event _event) const {
 		if (const CBFunc callback = onCollisions_[static_cast<int>(_event.GetType())]){
+            Logger::Log(std::format("Type : {}, {} , HitPos : {},{},{}\n", static_cast<int>(type_), static_cast<int>(_event.GetOther()->GetType()), translate_.x, translate_.y, translate_.z));
             callback(_event.GetOther());
         }
     }

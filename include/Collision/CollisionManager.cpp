@@ -54,7 +54,7 @@ namespace Collision {
             const size_t start = t * chunkSize;
             const size_t end = std::min(start + chunkSize, count);
             threads.emplace_back([this, &array, &results, start, end, t](){
-                auto& result = results[t];
+                Pair result;
                 for (size_t i = start; i < end; ++i){
                     const auto& [id1, c1] = array[i];
 
@@ -66,9 +66,10 @@ namespace Collision {
                         if (Detect(c1, c2)){
                             result = {id1, id2};
                         }
-
                     }
                 }
+                std::unique_lock lock(mutex_);
+                results[t] = std::move(result);
             });
         }
 
@@ -78,9 +79,9 @@ namespace Collision {
 
         {
             std::unique_lock lock(mutex_);
-            for (const auto& result : results){
-                const auto& [v1, v2] = result;
-                detectedPair_.emplace_back(v1, v2);
+            for (const auto& tRes : results){
+                if (tRes.first.empty() || tRes.second.empty()) continue;
+                detectedPair_.emplace_back(tRes);
             }
         }
     }
@@ -88,8 +89,13 @@ namespace Collision {
     void Manager::ProcessEvent() {
         std::unique_lock lock(mutex_);
         for (const auto& pair : detectedPair_){
-            const auto& c1 = colliders_.at(pair.first);
-            const auto& c2 = colliders_.at(pair.second);
+            auto itr = colliders_.find(pair.first);
+            auto otr = colliders_.find(pair.second);
+
+            if (itr == colliders_.end() || otr == colliders_.end())continue;
+
+            const auto& c1 = itr->second;
+            const auto& c2 = otr->second;
             if (c1 == c2) continue;
             if (std::ranges::find(prePair_, pair) == prePair_.end()){
                 c1->OnCollision({EventType::Trigger, c2});
@@ -101,8 +107,13 @@ namespace Collision {
         }
 
         for (const auto& pre : prePair_){
-            const auto& c1 = colliders_.at(pre.first);
-            const auto& c2 = colliders_.at(pre.second);
+            auto itr = colliders_.find(pre.first);
+            auto otr = colliders_.find(pre.second);
+
+            if (itr == colliders_.end() || otr == colliders_.end())continue;
+
+            const auto& c1 = itr->second;
+            const auto& c2 = otr->second;
             if (std::ranges::find(detectedPair_, pre) == detectedPair_.end()){
                 c1->OnCollision({EventType::Exit, c2});
                 c2->OnCollision({EventType::Exit, c1});
@@ -111,8 +122,13 @@ namespace Collision {
     }
 
     bool Manager::Filter(const Pair& _pair) const {
-        const Collider* c1 = colliders_.at(_pair.first);
-        const Collider* c2 = colliders_.at(_pair.second);
+    	auto itr = colliders_.find(_pair.first);
+        auto otr = colliders_.find(_pair.second);
+
+        if (itr == colliders_.end() || otr == colliders_.end())return false;
+
+        const Collider* c1 = itr->second;
+        const Collider* c2 = otr->second;
         if (c1 == c2) return false;
         if (!c1->IsEnabled() || !c2->IsEnabled()) return false;
         if (c1->GetType() == Type::None || c2->GetType() == Type::None) return false;
