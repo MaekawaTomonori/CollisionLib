@@ -1,7 +1,19 @@
 ﻿#include "CollisionManager.h"
 #include <algorithm>
+#include <condition_variable>
+#include <queue>
+#include <functional>
 
 namespace Collision{
+    // タスクキューと条件変数を追加
+    struct ThreadPoolTask{
+        std::function<void()> task;
+    };
+
+    std::queue<ThreadPoolTask> taskQueue_;
+    std::condition_variable taskCondition_;
+    std::mutex taskMutex_;
+
     Manager::Manager() {
         InitThreadPool();
     }
@@ -9,6 +21,9 @@ namespace Collision{
     Manager::~Manager() {
         // スレッドプールを停止
         running_ = false;
+
+        // 待機中のスレッドを起こす
+        taskCondition_.notify_all();
 
         // すべてのスレッドが終了するのを待つ
         for (auto& thread : threadPool_){
@@ -25,17 +40,34 @@ namespace Collision{
     }
 
     void Manager::WorkerThread(int threadId) const {
-        // スレッドプールの各スレッドはここで待機し、
-        // Detectメソッドから直接タスクを割り当てられる
         while (running_){
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            ThreadPoolTask task;
+            {
+                std::unique_lock<std::mutex> lock(taskMutex_);
+
+                // タスクがあるか、終了フラグが立つまで待機
+                taskCondition_.wait(lock, [this](){
+                    return !taskQueue_.empty() || !running_;
+                });
+
+                // 終了シグナルで起きた場合は抜ける
+                if (!running_ && taskQueue_.empty()){
+                    break;
+                }
+
+                // タスクを取得
+                task = std::move(taskQueue_.front());
+                taskQueue_.pop();
+            }
+
+            // タスクを実行
+            task.task();
         }
     }
 
     bool Manager::Register(Collider* collider) {
         if (!collider) return false;
 
-        // 衝突処理中はしばらく待機してからリトライ
         while (isProcessingCollisions_){
             pendingQueue_.push(collider);
             return true;
@@ -49,6 +81,11 @@ namespace Collision{
     bool Manager::Unregister(const Collider* collider) {
         if (!collider) return false;
 
+        // 衝突処理中はしばらく待機してからリトライ
+        while (isProcessingCollisions_){
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
         std::unique_lock lock(mutex_);
         colliders_.erase(collider->GetUniqueId());
 
@@ -61,11 +98,11 @@ namespace Collision{
     }
 
     void Manager::Detect() {
-        while (!pendingQueue_.empty()){
-            Collider* collider = pendingQueue_.front();
+	    while (!pendingQueue_.empty()){
+            const auto& collider = pendingQueue_.front();
             pendingQueue_.pop();
             Register(collider);
-        }
+	    }
 
         // 衝突処理中フラグを立てる
         isProcessingCollisions_ = true;
@@ -105,31 +142,36 @@ namespace Collision{
             const size_t start = t * chunkSize;
             const size_t end = std::min(start + chunkSize, count);
 
-            // スレッドプールを使わずに直接スレッドを生成（修正ポイント）
-            std::thread worker([this, &array, &threadResults, &completedThreads, start, end, threadIndex](){
-                std::vector<Pair> localResults;
+            // タスクをキューに追加
+            {
+                std::unique_lock<std::mutex> lock(taskMutex_);
+                taskQueue_.push({
+                    [this, &array, &threadResults, &completedThreads, start, end, threadIndex](){
+                        std::vector<Pair> localResults;
 
-                for (size_t i = start; i < end; ++i){
-                    const auto& [id1, c1] = array[i];
+                        for (size_t i = start; i < end; ++i){
+                            const auto& [id1, c1] = array[i];
 
-                    for (size_t j = i + 1; j < array.size(); ++j){
-                        const auto& [id2, c2] = array[j];
+                            for (size_t j = i + 1; j < array.size(); ++j){
+                                const auto& [id2, c2] = array[j];
 
-                        if (!Filter({id1, id2})) continue;
+                                if (!Filter({id1, id2})) continue;
 
-                        if (Detect(c1, c2)){
-                            localResults.emplace_back(id1, id2);
+                                if (Detect(c1, c2)){
+                                    localResults.emplace_back(id1, id2);
+                                }
+                            }
                         }
+
+                        // ローカル結果をスレッド結果配列に保存
+                        threadResults[threadIndex] = std::move(localResults);
+                        ++completedThreads;
                     }
-                }
+                                });
+            }
 
-                // ローカル結果をスレッド結果配列に保存
-                threadResults[threadIndex] = std::move(localResults);
-                ++completedThreads;
-            });
-
-            // 即座にデタッチして管理から外す
-            worker.detach();
+            // ワーカースレッドに通知
+            taskCondition_.notify_one();
         }
 
         // すべてのスレッドが完了するのを待つ
@@ -152,12 +194,12 @@ namespace Collision{
     }
 
     void Manager::ProcessEvent() {
-        // 処理中フラグを立てる
+        // 衝突処理中フラグを立てる
         isProcessingCollisions_ = true;
 
-        std::unique_lock lock(mutex_);
+        // このメソッドはメインスレッドで実行するので
+        // 明示的なスレッド処理は入れない
 
-        // 新規衝突の検出と継続衝突の処理
         for (const auto& pair : detectedPair_){
             auto itr = colliders_.find(pair.first);
             auto otr = colliders_.find(pair.second);
@@ -168,35 +210,24 @@ namespace Collision{
             const auto& c2 = otr->second;
             if (c1 == c2) continue;
 
-            // 前回のペアから探す
-            bool isNewCollision = true;
+            bool foundInPre = false;
             for (const auto& pre : prePair_){
                 if ((pre.first == pair.first && pre.second == pair.second) ||
                     (pre.first == pair.second && pre.second == pair.first)){
-                    isNewCollision = false;
+                    foundInPre = true;
                     break;
                 }
             }
 
-            // メインスレッドでコールバック実行
-            // ロックを一時的に解放
-            lock.unlock();
-
-            if (isNewCollision){
-                // 新規衝突
+            if (!foundInPre){
                 c1->OnCollision({EventType::Trigger, c2});
                 c2->OnCollision({EventType::Trigger, c1});
             } else{
-                // 継続衝突
-                c1->OnCollision({EventType::Stay, c2});
+            	c1->OnCollision({EventType::Stay, c2});
                 c2->OnCollision({EventType::Stay, c1});
             }
-
-            // ロックを再取得
-            lock.lock();
         }
 
-        // 終了した衝突の処理
         for (const auto& pre : prePair_){
             auto itr = colliders_.find(pre.first);
             auto otr = colliders_.find(pre.second);
@@ -206,30 +237,22 @@ namespace Collision{
             const auto& c1 = itr->second;
             const auto& c2 = otr->second;
 
-            // 現在の衝突ペアから探す
-            bool stillColliding = false;
-            for (const auto& curr : detectedPair_){
-                if ((curr.first == pre.first && curr.second == pre.second) ||
-                    (curr.first == pre.second && curr.second == pre.first)){
-                    stillColliding = true;
+            bool foundInDetected = false;
+            for (const auto& detected : detectedPair_){
+                if ((detected.first == pre.first && detected.second == pre.second) ||
+                    (detected.first == pre.second && detected.second == pre.first)){
+                    foundInDetected = true;
                     break;
                 }
             }
 
-            // 衝突が終了した場合
-            if (!stillColliding){
-                // ロックを一時的に解放してコールバック実行
-                lock.unlock();
-
+            if (!foundInDetected){
                 c1->OnCollision({EventType::Exit, c2});
                 c2->OnCollision({EventType::Exit, c1});
-
-                // ロックを再取得
-                lock.lock();
             }
         }
 
-        // 処理終了フラグを下げる
+        // 衝突処理完了フラグを下げる
         isProcessingCollisions_ = false;
     }
 

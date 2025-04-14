@@ -28,8 +28,7 @@ namespace Collision{
 
         std::queue<Collider*> pendingQueue_;
 
-
-    public:
+        public:
         Manager();
         ~Manager();
 
@@ -49,11 +48,13 @@ namespace Collision{
 
         /**
          * 衝突検出を実行します。
+         * この処理はスレッドプールを使用して並列に実行されます。
          */
         void Detect();
 
         /**
          * 衝突イベントを処理します。
+         * この処理はメインスレッドで実行されます。
          */
         void ProcessEvent();
 
@@ -93,4 +94,3 @@ namespace Collision{
         static bool Detect(const Collider* c1, const Collider* c2);
     };
 }
-
