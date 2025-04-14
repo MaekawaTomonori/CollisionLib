@@ -37,7 +37,8 @@ namespace Collision{
 
         // 衝突処理中はしばらく待機してからリトライ
         while (isProcessingCollisions_){
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            pendingQueue_.push(collider);
+            return true;
         }
 
         std::unique_lock lock(mutex_);
@@ -47,11 +48,6 @@ namespace Collision{
 
     bool Manager::Unregister(const Collider* collider) {
         if (!collider) return false;
-
-        // 衝突処理中はしばらく待機してからリトライ
-        while (isProcessingCollisions_){
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
 
         std::unique_lock lock(mutex_);
         colliders_.erase(collider->GetUniqueId());
@@ -65,6 +61,12 @@ namespace Collision{
     }
 
     void Manager::Detect() {
+        while (!pendingQueue_.empty()){
+            Collider* collider = pendingQueue_.front();
+            pendingQueue_.pop();
+            Register(collider);
+        }
+
         // 衝突処理中フラグを立てる
         isProcessingCollisions_ = true;
 
@@ -150,10 +152,12 @@ namespace Collision{
     }
 
     void Manager::ProcessEvent() {
-        // 衝突処理中フラグを立てる
+        // 処理中フラグを立てる
         isProcessingCollisions_ = true;
 
-        //std::unique_lock lock(mutex_);
+        std::unique_lock lock(mutex_);
+
+        // 新規衝突の検出と継続衝突の処理
         for (const auto& pair : detectedPair_){
             auto itr = colliders_.find(pair.first);
             auto otr = colliders_.find(pair.second);
@@ -164,30 +168,35 @@ namespace Collision{
             const auto& c2 = otr->second;
             if (c1 == c2) continue;
 
-            bool foundInPre = false;
+            // 前回のペアから探す
+            bool isNewCollision = true;
             for (const auto& pre : prePair_){
                 if ((pre.first == pair.first && pre.second == pair.second) ||
                     (pre.first == pair.second && pre.second == pair.first)){
-                    foundInPre = true;
+                    isNewCollision = false;
                     break;
                 }
             }
 
-            if (!foundInPre){
-                // ロックを一時的に解放してコールバック呼び出し
-                //lock.unlock();
+            // メインスレッドでコールバック実行
+            // ロックを一時的に解放
+            lock.unlock();
+
+            if (isNewCollision){
+                // 新規衝突
                 c1->OnCollision({EventType::Trigger, c2});
                 c2->OnCollision({EventType::Trigger, c1});
-                //lock.lock();
             } else{
-                // ロックを一時的に解放してコールバック呼び出し
-                //lock.unlock();
+                // 継続衝突
                 c1->OnCollision({EventType::Stay, c2});
                 c2->OnCollision({EventType::Stay, c1});
-                //lock.lock();
             }
+
+            // ロックを再取得
+            lock.lock();
         }
 
+        // 終了した衝突の処理
         for (const auto& pre : prePair_){
             auto itr = colliders_.find(pre.first);
             auto otr = colliders_.find(pre.second);
@@ -197,25 +206,30 @@ namespace Collision{
             const auto& c1 = itr->second;
             const auto& c2 = otr->second;
 
-            bool foundInDetected = false;
-            for (const auto& detected : detectedPair_){
-                if ((detected.first == pre.first && detected.second == pre.second) ||
-                    (detected.first == pre.second && detected.second == pre.first)){
-                    foundInDetected = true;
+            // 現在の衝突ペアから探す
+            bool stillColliding = false;
+            for (const auto& curr : detectedPair_){
+                if ((curr.first == pre.first && curr.second == pre.second) ||
+                    (curr.first == pre.second && curr.second == pre.first)){
+                    stillColliding = true;
                     break;
                 }
             }
 
-            if (!foundInDetected){
-                // ロックを一時的に解放してコールバック呼び出し
-                //lock.unlock();
+            // 衝突が終了した場合
+            if (!stillColliding){
+                // ロックを一時的に解放してコールバック実行
+                lock.unlock();
+
                 c1->OnCollision({EventType::Exit, c2});
                 c2->OnCollision({EventType::Exit, c1});
-                //lock.lock();
+
+                // ロックを再取得
+                lock.lock();
             }
         }
 
-        // 衝突処理完了フラグを下げる
+        // 処理終了フラグを下げる
         isProcessingCollisions_ = false;
     }
 

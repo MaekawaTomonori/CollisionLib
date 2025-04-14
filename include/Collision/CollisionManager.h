@@ -2,6 +2,7 @@
 #include <shared_mutex>
 #include <thread>
 #include <atomic>
+#include <queue>
 #include <vector>
 
 #include "Collider.h"
@@ -25,7 +26,10 @@ namespace Collision{
         // 直接登録するためのフラグ
         std::atomic<bool> isProcessingCollisions_ {false};
 
-        public:
+        std::queue<Collider*> pendingQueue_;
+
+
+    public:
         Manager();
         ~Manager();
 
