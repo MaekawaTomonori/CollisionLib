@@ -1,5 +1,4 @@
 ﻿#include "CollisionManager.h"
-
 #include <algorithm>
 
 namespace Collision{
@@ -10,7 +9,6 @@ namespace Collision{
     Manager::~Manager() {
         // スレッドプールを停止
         running_ = false;
-        condition_.notify_all();
 
         // すべてのスレッドが終了するのを待つ
         for (auto& thread : threadPool_){
@@ -21,79 +19,55 @@ namespace Collision{
     }
 
     void Manager::InitThreadPool() {
-        for (uint32_t i = 0; i < maxThreadCount_; ++i){
-            threadPool_.emplace_back(&Manager::WorkerThread, this);
+        for (int i = 0; i < maxThreadCount_; ++i){
+            threadPool_.emplace_back(&Manager::WorkerThread, this, i);
         }
     }
 
-    void Manager::WorkerThread() {
+    void Manager::WorkerThread(int threadId) const {
+        // スレッドプールの各スレッドはここで待機し、
+        // Detectメソッドから直接タスクを割り当てられる
         while (running_){
-            std::function<void()> task;
-            {
-                std::unique_lock<std::mutex> lock(queueMutex_);
-                condition_.wait(lock, [this]{
-                    return !taskQueue_.empty() || !running_;
-                });
-
-                if (!running_ && taskQueue_.empty()){
-                    return;
-                }
-
-                if (!taskQueue_.empty()){
-                    task = std::move(taskQueue_.front());
-                    taskQueue_.pop();
-                }
-            }
-
-            if (task){
-                task();
-            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
-    void Manager::AddTask(std::function<void()> task) {
-        {
-            std::unique_lock<std::mutex> lock(queueMutex_);
-            taskQueue_.push(std::move(task));
+    bool Manager::Register(Collider* collider) {
+        if (!collider) return false;
+
+        // 衝突処理中はしばらく待機してからリトライ
+        while (isProcessingCollisions_){
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        condition_.notify_one();
-    }
-
-    void Manager::WaitForTasks() {
-        // すべてのタスクが完了するのを待つ
-        std::unique_lock<std::mutex> lock(queueMutex_);
-        condition_.wait(lock, [this]{
-            return taskQueue_.empty();
-        });
-    }
-
-    bool Manager::Register(Collider* c) {
-        if (!c) return false;
 
         std::unique_lock lock(mutex_);
-        if (c){
-            colliders_[c->GetUniqueId()] = c;
-            return true;
-        }
-
-        return false;
+        colliders_[collider->GetUniqueId()] = collider;
+        return true;
     }
 
-    bool Manager::Unregister(const Collider* c) {
-        if (!c)return false;
+    bool Manager::Unregister(const Collider* collider) {
+        if (!collider) return false;
+
+        // 衝突処理中はしばらく待機してからリトライ
+        while (isProcessingCollisions_){
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
 
         std::unique_lock lock(mutex_);
-        colliders_.erase(c->GetUniqueId());
+        colliders_.erase(collider->GetUniqueId());
 
         auto it = std::ranges::remove_if(detectedPair_,
-                                         [&c](const Pair& pair){
-            return pair.first == c->GetUniqueId() || pair.second == c->GetUniqueId();
+                                         [&collider](const Pair& pair){
+            return pair.first == collider->GetUniqueId() || pair.second == collider->GetUniqueId();
         });
 
         return true;
     }
 
     void Manager::Detect() {
+        // 衝突処理中フラグを立てる
+        isProcessingCollisions_ = true;
+
         prePair_.clear();
         prePair_ = std::move(detectedPair_);
         detectedPair_.clear();
@@ -109,73 +83,108 @@ namespace Collision{
         }
 
         const size_t count = array.size();
-        std::vector<Pair> results(maxThreadCount_);
-        std::mutex resultsMutex;
+        if (count == 0){
+            isProcessingCollisions_ = false;
+            return;
+        }
 
+        // 結果格納用の配列
+        std::vector<std::vector<Pair>> threadResults(maxThreadCount_);
+
+        // タスク分割
         const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
 
-        std::atomic<int> tasksCompleted = 0;
-        int totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
+        // 完了カウンター
+        std::atomic<int> completedThreads = 0;
 
-        for (uint32_t t = 0; t < totalTasks; ++t){
+        // 各スレッドに仕事を割り当て
+        for (uint32_t t = 0; t < std::min(maxThreadCount_, static_cast<uint32_t>(count)); ++t){
+            const uint32_t threadIndex = t;
             const size_t start = t * chunkSize;
             const size_t end = std::min(start + chunkSize, count);
-            const uint32_t threadIndex = t;
 
-            AddTask([this, &array, &results, &resultsMutex, start, end, threadIndex, &tasksCompleted](){
-	            for (size_t i = start; i < end; ++i){
+            // スレッドプールを使わずに直接スレッドを生成（修正ポイント）
+            std::thread worker([this, &array, &threadResults, &completedThreads, start, end, threadIndex](){
+                std::vector<Pair> localResults;
+
+                for (size_t i = start; i < end; ++i){
                     const auto& [id1, c1] = array[i];
 
                     for (size_t j = i + 1; j < array.size(); ++j){
                         const auto& [id2, c2] = array[j];
 
-                        if (!Filter({id1, id2}))continue;
+                        if (!Filter({id1, id2})) continue;
 
                         if (Detect(c1, c2)){
-                            Pair result = {id1, id2};
-
-                            std::unique_lock lockResult(resultsMutex);
-                            if (!result.first.empty() && !result.second.empty()){
-                                results[threadIndex] = std::move(result);
-                            }
+                            localResults.emplace_back(id1, id2);
                         }
                     }
                 }
-                ++tasksCompleted;
+
+                // ローカル結果をスレッド結果配列に保存
+                threadResults[threadIndex] = std::move(localResults);
+                ++completedThreads;
             });
+
+            // 即座にデタッチして管理から外す
+            worker.detach();
         }
 
-        // すべてのタスクが完了するのを待つ（別の方法）
-        while (tasksCompleted < totalTasks){
+        // すべてのスレッドが完了するのを待つ
+        while (completedThreads < std::min(maxThreadCount_, static_cast<uint32_t>(count))){
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
+        // 結果をマージ
         {
             std::unique_lock lock(mutex_);
-            for (const auto& tRes : results){
-                if (tRes.first.empty() || tRes.second.empty()) continue;
-                detectedPair_.emplace_back(tRes);
+            for (const auto& results : threadResults){
+                for (const auto& pair : results){
+                    detectedPair_.push_back(pair);
+                }
             }
         }
+
+        // 衝突処理完了フラグを下げる
+        isProcessingCollisions_ = false;
     }
 
     void Manager::ProcessEvent() {
-        std::unique_lock lock(mutex_);
+        // 衝突処理中フラグを立てる
+        isProcessingCollisions_ = true;
+
+        //std::unique_lock lock(mutex_);
         for (const auto& pair : detectedPair_){
             auto itr = colliders_.find(pair.first);
             auto otr = colliders_.find(pair.second);
 
-            if (itr == colliders_.end() || otr == colliders_.end())continue;
+            if (itr == colliders_.end() || otr == colliders_.end()) continue;
 
             const auto& c1 = itr->second;
             const auto& c2 = otr->second;
             if (c1 == c2) continue;
-            if (std::ranges::find(prePair_, pair) == prePair_.end()){
+
+            bool foundInPre = false;
+            for (const auto& pre : prePair_){
+                if ((pre.first == pair.first && pre.second == pair.second) ||
+                    (pre.first == pair.second && pre.second == pair.first)){
+                    foundInPre = true;
+                    break;
+                }
+            }
+
+            if (!foundInPre){
+                // ロックを一時的に解放してコールバック呼び出し
+                //lock.unlock();
                 c1->OnCollision({EventType::Trigger, c2});
                 c2->OnCollision({EventType::Trigger, c1});
+                //lock.lock();
             } else{
+                // ロックを一時的に解放してコールバック呼び出し
+                //lock.unlock();
                 c1->OnCollision({EventType::Stay, c2});
                 c2->OnCollision({EventType::Stay, c1});
+                //lock.lock();
             }
         }
 
@@ -183,22 +192,38 @@ namespace Collision{
             auto itr = colliders_.find(pre.first);
             auto otr = colliders_.find(pre.second);
 
-            if (itr == colliders_.end() || otr == colliders_.end())continue;
+            if (itr == colliders_.end() || otr == colliders_.end()) continue;
 
             const auto& c1 = itr->second;
             const auto& c2 = otr->second;
-            if (std::ranges::find(detectedPair_, pre) == detectedPair_.end()){
+
+            bool foundInDetected = false;
+            for (const auto& detected : detectedPair_){
+                if ((detected.first == pre.first && detected.second == pre.second) ||
+                    (detected.first == pre.second && detected.second == pre.first)){
+                    foundInDetected = true;
+                    break;
+                }
+            }
+
+            if (!foundInDetected){
+                // ロックを一時的に解放してコールバック呼び出し
+                //lock.unlock();
                 c1->OnCollision({EventType::Exit, c2});
                 c2->OnCollision({EventType::Exit, c1});
+                //lock.lock();
             }
         }
+
+        // 衝突処理完了フラグを下げる
+        isProcessingCollisions_ = false;
     }
 
-    bool Manager::Filter(const Pair& _pair) const {
-        auto itr = colliders_.find(_pair.first);
-        auto otr = colliders_.find(_pair.second);
+    bool Manager::Filter(const Pair& pair) const {
+        auto itr = colliders_.find(pair.first);
+        auto otr = colliders_.find(pair.second);
 
-        if (itr == colliders_.end() || otr == colliders_.end())return false;
+        if (itr == colliders_.end() || otr == colliders_.end()) return false;
 
         const Collider* c1 = itr->second;
         const Collider* c2 = otr->second;
@@ -209,16 +234,16 @@ namespace Collision{
         return true;
     }
 
-    bool Manager::Detect(const Collider* _c1, const Collider* _c2) {
-        bool sp1 = std::holds_alternative<float>(_c1->GetSize());
-        bool sp2 = std::holds_alternative<float>(_c2->GetSize());
+    bool Manager::Detect(const Collider* c1, const Collider* c2) {
+        bool sp1 = std::holds_alternative<float>(c1->GetSize());
+        bool sp2 = std::holds_alternative<float>(c2->GetSize());
         if (sp1 && sp2){
             // Sphere vs Sphere
-            return (_c1->GetTranslate() - _c2->GetTranslate()).Length() <= (std::get<float>(_c1->GetSize()) + std::get<float>(_c2->GetSize()));
+            return (c1->GetTranslate() - c2->GetTranslate()).Length() <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
         } else if (sp1 && !sp2 || !sp1 && sp2){
             // AABB vs Sphere
-            const auto& aabb = sp1 ? _c2 : _c1;
-            const auto& sphere = sp1 ? _c1 : _c2;
+            const auto& aabb = sp1 ? c2 : c1;
+            const auto& sphere = sp1 ? c1 : c2;
             const auto& aabbSize = std::get<Vec3>(aabb->GetSize());
             const auto& aabbTranslate = aabb->GetTranslate();
             const auto& sphereSize = std::get<float>(sphere->GetSize());
@@ -230,11 +255,11 @@ namespace Collision{
 
         } else if (!sp1 && !sp2){
             // AABB vs AABB
-            auto size1 = std::get<Vec3>(_c1->GetSize());
-            auto size2 = std::get<Vec3>(_c2->GetSize());
-            return (std::abs(_c1->GetTranslate().x - _c2->GetTranslate().x) < size1.x + size2.x) &&
-                (std::abs(_c1->GetTranslate().y - _c2->GetTranslate().y) < size1.y + size2.y) &&
-                (std::abs(_c1->GetTranslate().z - _c2->GetTranslate().z) < size1.z + size2.z);
+            auto size1 = std::get<Vec3>(c1->GetSize());
+            auto size2 = std::get<Vec3>(c2->GetSize());
+            return (std::abs(c1->GetTranslate().x - c2->GetTranslate().x) < size1.x + size2.x) &&
+                (std::abs(c1->GetTranslate().y - c2->GetTranslate().y) < size1.y + size2.y) &&
+                (std::abs(c1->GetTranslate().z - c2->GetTranslate().z) < size1.z + size2.z);
         }
 
         return false;
