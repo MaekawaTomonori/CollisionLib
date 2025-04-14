@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <shared_mutex>
 #include <unordered_set>
 
@@ -7,9 +7,9 @@
 namespace Collision{
 	class Manager{
 		using Pair = std::pair<std::string, std::string>;
-		// “o˜^Ï‚İƒRƒ‰ƒCƒ_[î•ñ
+		// ç™»éŒ²æ¸ˆã¿ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼æƒ…å ±
 		std::unordered_map<std::string, Collider*> colliders_;
-		// Õ“ËŠm”FÏ‚İƒyƒA
+		// è¡çªç¢ºèªæ¸ˆã¿ãƒšã‚¢
 		std::vector<Pair> detectedPair_;
 		std::vector<Pair> prePair_;
 
