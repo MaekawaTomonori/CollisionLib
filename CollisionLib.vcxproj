@@ -38,7 +38,6 @@
     <ProjectGuid>{3b4663f4-d09b-4503-aeb0-b2477444918f}</ProjectGuid>
     <RootNamespace>CollisioniLib</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>CollisionLib</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
