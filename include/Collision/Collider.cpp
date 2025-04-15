@@ -94,6 +94,11 @@ namespace Collision{
         return this;
 	}
 
+	Collider* Collider::SetOwner(void* _owner) {
+        owner_ = _owner;
+        return this;
+	}
+
 	void Collider::OnCollision(const Event _event) const {
 		if (const CBFunc callback = onCollisions_[static_cast<int>(_event.GetType())]){
             Logger::Log(std::format("Type : {}, {} , HitPos : {},{},{}\n", static_cast<int>(type_), static_cast<int>(_event.GetOther()->GetType()), translate_.x, translate_.y, translate_.z));
@@ -123,5 +128,9 @@ namespace Collision{
 
     Vec3 Collider::GetTranslate() const {
         return translate_;
+    }
+
+    void* Collider::GetOwner() const {
+        return owner_;
     }
 }

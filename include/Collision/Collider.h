@@ -53,6 +53,8 @@ namespace Collision {
 		uint32_t attribute_ = 0b0;
 		uint32_t ignore_ = 0b0;
 
+        void* owner_ = nullptr;
+
 	public:
 		Collider();
 		~Collider();
@@ -72,6 +74,7 @@ namespace Collision {
         Collider* RemoveAttribute(uint32_t _attribute);
         Collider* AddIgnore(uint32_t _ignore);
         Collider* RemoveIgnore(uint32_t _ignore);
+        Collider* SetOwner(void* _owner);
 
         void OnCollision(Event _event) const;
 
@@ -81,5 +84,6 @@ namespace Collision {
         uint32_t GetIgnore() const;
         Size GetSize() const;
         Vec3 GetTranslate() const;
+        void* GetOwner() const;
     };
 }
