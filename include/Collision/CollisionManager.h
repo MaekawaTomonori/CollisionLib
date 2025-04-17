@@ -21,14 +21,19 @@ namespace Collision{
 
         // スレッドプール関連
         std::vector<std::thread> threadPool_;
+        std::queue<std::function<void()>>tasks_;
+        std::mutex taskMutex_;
+        std::condition_variable taskCondition_;
         std::atomic<bool> running_ {true};
 
         // 直接登録するためのフラグ
         std::atomic<bool> isProcessingCollisions_ {false};
 
         std::queue<Collider*> pendingQueue_;
+        std::queue<const Collider*> unregisterQueue_;
+        std::mutex pendingMutex_;
 
-        public:
+    public:
         Manager();
         ~Manager();
 
@@ -58,25 +63,18 @@ namespace Collision{
          */
         void ProcessEvent();
 
-        /**
-         * 衝突処理中かどうかを返します。
-         * @return 衝突処理中の場合はtrue
-         */
-        bool IsProcessingCollisions() const {
-            return isProcessingCollisions_;
-        }
+        void  ProcessPendingRegistrations();
 
         private:
-        /**
+
+        void AddTask(std::function<void()> task);
+        void WaitForTasks();
+
+    	/**
          * スレッドプールを初期化します。
          */
         void InitThreadPool();
-
-        /**
-         * ワーカースレッドの処理を行います。
-         * @param threadId スレッドID
-         */
-        void WorkerThread(int threadId) const;
+        void WorkerThread();
 
         /**
          * ペアがフィルター条件に一致するか確認します。

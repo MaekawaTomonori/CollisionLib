@@ -5,15 +5,6 @@
 #include <functional>
 
 namespace Collision{
-    // タスクキューと条件変数を追加
-    struct ThreadPoolTask{
-        std::function<void()> task;
-    };
-
-    std::queue<ThreadPoolTask> taskQueue_;
-    std::condition_variable taskCondition_;
-    std::mutex taskMutex_;
-
     Manager::Manager() {
         InitThreadPool();
     }
@@ -21,8 +12,6 @@ namespace Collision{
     Manager::~Manager() {
         // スレッドプールを停止
         running_ = false;
-
-        // 待機中のスレッドを起こす
         taskCondition_.notify_all();
 
         // すべてのスレッドが終了するのを待つ
@@ -34,82 +23,136 @@ namespace Collision{
     }
 
     void Manager::InitThreadPool() {
-        for (int i = 0; i < maxThreadCount_; ++i){
-            threadPool_.emplace_back(&Manager::WorkerThread, this, i);
+        for (uint32_t i = 0; i < maxThreadCount_; ++i){
+            threadPool_.emplace_back(&Manager::WorkerThread, this);
         }
     }
 
-    void Manager::WorkerThread(int threadId) const {
+    void Manager::WorkerThread() {
         while (running_){
-            ThreadPoolTask task;
+            std::function<void()> task;
+
             {
                 std::unique_lock<std::mutex> lock(taskMutex_);
 
-                // タスクがあるか、終了フラグが立つまで待機
-                taskCondition_.wait(lock, [this](){
-                    return !taskQueue_.empty() || !running_;
+                // タスクがあるか終了するまで待機
+                taskCondition_.wait(lock, [this]{
+                    return !tasks_.empty() || !running_;
                 });
 
-                // 終了シグナルで起きた場合は抜ける
-                if (!running_ && taskQueue_.empty()){
-                    break;
+                // 終了条件
+                if (!running_ && tasks_.empty()){
+                    return;
                 }
 
                 // タスクを取得
-                task = std::move(taskQueue_.front());
-                taskQueue_.pop();
+                if (!tasks_.empty()){
+                    task = std::move(tasks_.front());
+                    tasks_.pop();
+                }
             }
 
             // タスクを実行
-            task.task();
+            if (task){
+                task();
+            }
         }
     }
 
-    bool Manager::Register(Collider* collider) {
-        if (!collider) return false;
+    void Manager::AddTask(std::function<void()> task) {
+        {
+            std::unique_lock<std::mutex> lock(taskMutex_);
+            tasks_.push(std::move(task));
+        }
+        taskCondition_.notify_one();
+    }
 
-        while (isProcessingCollisions_){
-            pendingQueue_.push(collider);
+    void Manager::WaitForTasks() {
+        std::unique_lock<std::mutex> lock(taskMutex_);
+        taskCondition_.wait(lock, [this]{
+            return tasks_.empty();
+        });
+    }
+
+    bool Manager::Register(Collider* c) {
+        if (!c) return false;
+
+        // 衝突処理中なら遅延登録
+        if (isProcessingCollisions_){
+            std::unique_lock<std::mutex> lock(pendingMutex_);
+            pendingQueue_.push(c);
             return true;
         }
 
+        // 通常登録
         std::unique_lock lock(mutex_);
-        colliders_[collider->GetUniqueId()] = collider;
+        colliders_[c->GetUniqueId()] = c;
         return true;
     }
 
-    bool Manager::Unregister(const Collider* collider) {
-        if (!collider) return false;
+    bool Manager::Unregister(const Collider* c) {
+        if (!c) return false;
 
-        // 衝突処理中はしばらく待機してからリトライ
-        while (isProcessingCollisions_){
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        // 衝突処理中なら遅延解除
+        if (isProcessingCollisions_){
+            std::unique_lock<std::mutex> lock(pendingMutex_);
+            unregisterQueue_.push(c);
+            return true;
         }
 
+        // 通常解除
         std::unique_lock lock(mutex_);
-        colliders_.erase(collider->GetUniqueId());
+        colliders_.erase(c->GetUniqueId());
 
         auto it = std::ranges::remove_if(detectedPair_,
-                                         [&collider](const Pair& pair){
-            return pair.first == collider->GetUniqueId() || pair.second == collider->GetUniqueId();
+                                         [&c](const Pair& pair){
+            return pair.first == c->GetUniqueId() || pair.second == c->GetUniqueId();
         });
 
         return true;
     }
 
+    void Manager::ProcessPendingRegistrations() {
+        std::queue<Collider*> registrations;
+        std::queue<const Collider*> unregistrations;
+
+        {
+            std::unique_lock<std::mutex> lock(pendingMutex_);
+            registrations = std::move(pendingQueue_);
+            unregistrations = std::move(unregisterQueue_);
+        }
+
+        // 遅延登録を処理
+        while (!registrations.empty()){
+            Collider* c = registrations.front();
+            registrations.pop();
+
+            std::unique_lock lock(mutex_);
+            colliders_[c->GetUniqueId()] = c;
+        }
+
+        // 遅延解除を処理
+        while (!unregistrations.empty()){
+            const Collider* c = unregistrations.front();
+            unregistrations.pop();
+
+            std::unique_lock lock(mutex_);
+            colliders_.erase(c->GetUniqueId());
+
+            auto it = std::ranges::remove_if(detectedPair_,
+                                             [&c](const Pair& pair){
+                return pair.first == c->GetUniqueId() || pair.second == c->GetUniqueId();
+            });
+        }
+    }
+
     void Manager::Detect() {
-	    while (!pendingQueue_.empty()){
-            const auto& collider = pendingQueue_.front();
-            pendingQueue_.pop();
-            Register(collider);
-	    }
-
-        // 衝突処理中フラグを立てる
-        isProcessingCollisions_ = true;
-
         prePair_.clear();
         prePair_ = std::move(detectedPair_);
         detectedPair_.clear();
+
+        // 処理前に遅延登録を適用
+        ProcessPendingRegistrations();
 
         std::vector<std::pair<std::string, Collider*>> array;
         {
@@ -122,60 +165,43 @@ namespace Collision{
         }
 
         const size_t count = array.size();
-        if (count == 0){
-            isProcessingCollisions_ = false;
-            return;
-        }
+        if (count == 0) return;
 
-        // 結果格納用の配列
         std::vector<std::vector<Pair>> threadResults(maxThreadCount_);
-
-        // タスク分割
+        std::atomic<int> tasksCompleted = 0;
+        int totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
         const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
 
-        // 完了カウンター
-        std::atomic<int> completedThreads = 0;
-
-        // 各スレッドに仕事を割り当て
-        for (uint32_t t = 0; t < std::min(maxThreadCount_, static_cast<uint32_t>(count)); ++t){
-            const uint32_t threadIndex = t;
+        // 各スレッドにタスクを割り当て
+        for (uint32_t t = 0; t < totalTasks; ++t){
             const size_t start = t * chunkSize;
             const size_t end = std::min(start + chunkSize, count);
+            const uint32_t threadIndex = t;
 
-            // タスクをキューに追加
-            {
-                std::unique_lock<std::mutex> lock(taskMutex_);
-                taskQueue_.push({
-                    [this, &array, &threadResults, &completedThreads, start, end, threadIndex](){
-                        std::vector<Pair> localResults;
+            AddTask([this, &array, &threadResults, start, end, threadIndex, &tasksCompleted](){
+                std::vector<Pair> localResults;
 
-                        for (size_t i = start; i < end; ++i){
-                            const auto& [id1, c1] = array[i];
+                for (size_t i = start; i < end; ++i){
+                    const auto& [id1, c1] = array[i];
 
-                            for (size_t j = i + 1; j < array.size(); ++j){
-                                const auto& [id2, c2] = array[j];
+                    for (size_t j = i + 1; j < array.size(); ++j){
+                        const auto& [id2, c2] = array[j];
 
-                                if (!Filter({id1, id2})) continue;
+                        if (!Filter({id1, id2})) continue;
 
-                                if (Detect(c1, c2)){
-                                    localResults.emplace_back(id1, id2);
-                                }
-                            }
+                        if (Detect(c1, c2)){
+                            localResults.emplace_back(id1, id2);
                         }
-
-                        // ローカル結果をスレッド結果配列に保存
-                        threadResults[threadIndex] = std::move(localResults);
-                        ++completedThreads;
                     }
-                                });
-            }
+                }
 
-            // ワーカースレッドに通知
-            taskCondition_.notify_one();
+                threadResults[threadIndex] = std::move(localResults);
+                tasksCompleted++;
+            });
         }
 
-        // すべてのスレッドが完了するのを待つ
-        while (completedThreads < std::min(maxThreadCount_, static_cast<uint32_t>(count))){
+        // すべてのタスクが完了するのを待つ
+        while (tasksCompleted < totalTasks){
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
@@ -188,18 +214,18 @@ namespace Collision{
                 }
             }
         }
-
-        // 衝突処理完了フラグを下げる
-        isProcessingCollisions_ = false;
     }
 
+    /**
+     * メインスレッドで実行されることを前提としたProcessEventメソッド
+     */
     void Manager::ProcessEvent() {
-        // 衝突処理中フラグを立てる
+        // 処理中フラグを立てる
         isProcessingCollisions_ = true;
 
-        // このメソッドはメインスレッドで実行するので
-        // 明示的なスレッド処理は入れない
+        std::unique_lock lock(mutex_);
 
+        // 新規衝突の検出と継続衝突の処理
         for (const auto& pair : detectedPair_){
             auto itr = colliders_.find(pair.first);
             auto otr = colliders_.find(pair.second);
@@ -210,24 +236,35 @@ namespace Collision{
             const auto& c2 = otr->second;
             if (c1 == c2) continue;
 
-            bool foundInPre = false;
+            // 前回のペアから探す
+            bool isNewCollision = true;
             for (const auto& pre : prePair_){
                 if ((pre.first == pair.first && pre.second == pair.second) ||
                     (pre.first == pair.second && pre.second == pair.first)){
-                    foundInPre = true;
+                    isNewCollision = false;
                     break;
                 }
             }
 
-            if (!foundInPre){
+            // メインスレッドでコールバック実行
+            // ロックを一時的に解放
+            lock.unlock();
+
+            if (isNewCollision){
+                // 新規衝突
                 c1->OnCollision({EventType::Trigger, c2});
                 c2->OnCollision({EventType::Trigger, c1});
             } else{
-            	c1->OnCollision({EventType::Stay, c2});
+                // 継続衝突
+                c1->OnCollision({EventType::Stay, c2});
                 c2->OnCollision({EventType::Stay, c1});
             }
+
+            // ロックを再取得
+            lock.lock();
         }
 
+        // 終了した衝突の処理
         for (const auto& pre : prePair_){
             auto itr = colliders_.find(pre.first);
             auto otr = colliders_.find(pre.second);
@@ -237,22 +274,36 @@ namespace Collision{
             const auto& c1 = itr->second;
             const auto& c2 = otr->second;
 
-            bool foundInDetected = false;
-            for (const auto& detected : detectedPair_){
-                if ((detected.first == pre.first && detected.second == pre.second) ||
-                    (detected.first == pre.second && detected.second == pre.first)){
-                    foundInDetected = true;
+            // 現在の衝突ペアから探す
+            bool stillColliding = false;
+            for (const auto& curr : detectedPair_){
+                if ((curr.first == pre.first && curr.second == pre.second) ||
+                    (curr.first == pre.second && curr.second == pre.first)){
+                    stillColliding = true;
                     break;
                 }
             }
 
-            if (!foundInDetected){
+            // 衝突が終了した場合
+            if (!stillColliding){
+                // ロックを一時的に解放してコールバック実行
+                lock.unlock();
+
                 c1->OnCollision({EventType::Exit, c2});
                 c2->OnCollision({EventType::Exit, c1});
+
+                // ロックを再取得
+                lock.lock();
             }
         }
 
-        // 衝突処理完了フラグを下げる
+        // ロックを解放
+        lock.unlock();
+
+        // 遅延登録を処理
+        ProcessPendingRegistrations();
+
+        // 処理終了フラグを下げる
         isProcessingCollisions_ = false;
     }
 
@@ -277,7 +328,7 @@ namespace Collision{
         if (sp1 && sp2){
             // Sphere vs Sphere
             return (c1->GetTranslate() - c2->GetTranslate()).Length() <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
-        } else if (sp1 && !sp2 || !sp1 && sp2){
+        } else if ((sp1 && !sp2) || (!sp1 && sp2)){
             // AABB vs Sphere
             const auto& aabb = sp1 ? c2 : c1;
             const auto& sphere = sp1 ? c1 : c2;
