@@ -1,4 +1,6 @@
-﻿#include "CollisionManager.h"
+﻿#include "Collision/CollisionManager.h"
+#include "Ray.h"
+
 #include <algorithm>
 #include <condition_variable>
 #include <queue>
@@ -196,7 +198,7 @@ namespace Collision{
                 }
 
                 threadResults[threadIndex] = std::move(localResults);
-                tasksCompleted++;
+                ++tasksCompleted;
             });
         }
 
@@ -323,6 +325,17 @@ namespace Collision{
     }
 
     bool Manager::Detect(const Collider* c1, const Collider* c2) {
+        // Handle Ray-specific collision detection
+        if (c1->GetType() == Type::Ray) {
+            const Ray& ray = std::get<Ray>(c1->GetBody());
+            return DetectRay(ray, c2);
+        }
+        if (c2->GetType() == Type::Ray) {
+            const Ray& ray = std::get<Ray>((c2->GetBody()));
+            return DetectRay(ray, c1);
+        }
+
+        // Handle other collision types
         bool sp1 = std::holds_alternative<float>(c1->GetSize());
         bool sp2 = std::holds_alternative<float>(c2->GetSize());
         if (sp1 && sp2){
@@ -350,6 +363,17 @@ namespace Collision{
                 (std::abs(c1->GetTranslate().z - c2->GetTranslate().z) < size1.z + size2.z);
         }
 
+        return false;
+    }
+
+    bool Manager::DetectRay(const Ray& ray, const Collider* collider) {
+        if (collider->GetType() == Type::AABB) {
+            const AABB& aabb = std::get<AABB>((collider->GetBody()));
+            return ray.Intersects(aabb);
+        }
+        if (collider->GetType() == Type::Sphere) {
+            // Implement sphere-ray intersection logic
+        }
         return false;
     }
 }

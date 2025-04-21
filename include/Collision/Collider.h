@@ -1,17 +1,22 @@
 #pragma once
+#include <array>
 #include <functional>
 #include <shared_mutex>
 #include <variant>
 
+#include "Collision/Ray.h"
 #include "sys/Mathematics.h"
 
 namespace Collision {
 	class Manager;
 	class Collider;
+	struct Sphere;
+	struct AABB;
 
 	enum class Type{
-		AABB,
 		Sphere,
+		AABB,
+        Ray,
 
 		None
 	};
@@ -33,6 +38,7 @@ namespace Collision {
 	};
 
     class Collider{
+        using Body = std::variant<Sphere, AABB, Ray>;
     	using Size = std::variant<float, Vec3>;
 		using CBFunc = std::function<void(const Collider*)>;
 
@@ -41,6 +47,8 @@ namespace Collision {
 		std::shared_mutex mutex_;
 
 		std::string uuid_;
+
+        std::unique_ptr<Body> body_ = nullptr;
 
         Type type_ = Type::None;
 		Vec3 translate_{};
@@ -79,6 +87,7 @@ namespace Collision {
         void OnCollision(Event _event) const;
 
 		std::string GetUniqueId() const;
+        const Body& GetBody() const;
         Type GetType() const;
         uint32_t GetAttribute() const;
         uint32_t GetIgnore() const;

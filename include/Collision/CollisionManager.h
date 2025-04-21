@@ -90,5 +90,8 @@ namespace Collision{
          * @return 衝突している場合はtrue
          */
         static bool Detect(const Collider* c1, const Collider* c2);
+
+        // Ray-specific collision detection
+        static bool DetectRay(const Ray& ray, const Collider* collider);
     };
 }

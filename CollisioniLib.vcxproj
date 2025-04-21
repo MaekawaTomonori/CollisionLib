@@ -19,18 +19,22 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Collision\AABB.h" />
     <ClInclude Include="include\Collision\Collider.h" />
     <ClInclude Include="include\Collision\CollisionManager.h" />
-    <ClInclude Include="include\sys\Mathematics.h" />
-    <ClInclude Include="include\sys\Singleton.h" />
-    <ClInclude Include="include\sys\System.h" />
+    <ClInclude Include="src\Collision\Ray.h" />
+    <ClInclude Include="src\sys\Mathematics.h" />
+    <ClInclude Include="src\sys\Singleton.h" />
+    <ClInclude Include="src\sys\System.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="include\Collision\Collider.cpp" />
-    <ClCompile Include="include\Collision\CollisionManager.cpp" />
-    <ClCompile Include="include\sys\Mathematics.cpp" />
-    <ClCompile Include="include\sys\Singleton.cpp" />
-    <ClCompile Include="include\sys\System.cpp" />
+    <ClCompile Include="src\Collision\AABB.cpp" />
+    <ClCompile Include="src\Collision\Ray.cpp" />
+    <ClCompile Include="src\Collision\Collider.cpp" />
+    <ClCompile Include="src\Collision\CollisionManager.cpp" />
+    <ClCompile Include="src\sys\Mathematics.cpp" />
+    <ClCompile Include="src\sys\Singleton.cpp" />
+    <ClCompile Include="src\sys\System.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
@@ -131,7 +135,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -150,7 +154,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>

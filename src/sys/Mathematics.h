@@ -1,8 +1,5 @@
 ﻿#pragma once
 #define NOMINMAX
-#include <cmath>
-#include <algorithm>
-#include <array>
 #include <iostream>
 
 namespace Collision {// 3次元ベクトル
@@ -73,56 +70,9 @@ namespace Collision {// 3次元ベクトル
         bool operator!=(const Vec3i& other) const;
     };
 
-    // AABB (Axis-Aligned Bounding Box)
-    struct AABB{
-        Vec3 min;
-        Vec3 max;
-
-        AABB();
-
-        AABB(const Vec3& mi, const Vec3& ma);
-
-        Vec3 GetCenter() const;
-
-        Vec3 GetExtents() const;
-
-        Vec3 GetSize() const;
-
-        float GetVolume() const;
-
-        bool Contains(const Vec3& point) const;
-
-        bool Intersects(const AABB& other) const;
-
-        void Expand(const Vec3& point);
-
-        void Expand(const AABB& other);
-
-        static AABB FromCenterExtents(const Vec3& center, const Vec3& extents);
-    };
-
-    // Ray（レイ）
-    struct Ray{
-        Vec3 origin;
-        Vec3 direction;
-
-        Ray();
-
-        Ray(const Vec3& origin, const Vec3& direction);
-
-        Vec3 GetPoint(float distance) const;
-
-        bool Intersects(const AABB& aabb, float& distance) const;
-    };
-
     // 外部ストリーム出力演算子
     inline std::ostream& operator<<(std::ostream& os, const Vec3& v) {
         os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
-        return os;
-    }
-
-    inline std::ostream& operator<<(std::ostream& os, const AABB& aabb) {
-        os << "AABB{min=" << aabb.min << ", max=" << aabb.max << "}";
         return os;
     }
 }
