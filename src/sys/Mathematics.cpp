@@ -73,6 +73,13 @@ namespace Collision {
 	    return !(*this == other);
     }
 
+    float Vec3::operator[](int index) const {
+        if (index == 0) return x;
+        if (index == 1) return y;
+        if (index == 2) return z;
+        throw std::out_of_range("Index out of range");
+    }
+
     float Vec3::Length() const {
 	    return std::sqrt(x * x + y * y + z * z);
     }
@@ -125,118 +132,180 @@ namespace Collision {
     bool Vec3i::operator!=(const Vec3i& other) const {
 	    return !(*this == other);
     }
-
-    AABB::AABB() {
-	    min = {0,0,0};
-	    max = {0,0,0};
+    Quat::Quat() : x(0.0f), y(0.0f), z(0.0f), w(1.0f) {
     }
 
-    AABB::AABB(const Vec3& mi, const Vec3& ma) {
-	    min = mi;
-	    max = ma;
+    Quat::Quat(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {
     }
 
-    Vec3 AABB::GetCenter() const {
-	    return (min + max) * 0.5f;
+    Quat::Quat(const Vec3& axis, float angle) {
+        Vec3 normalizedAxis = axis;
+        normalizedAxis.Normalize();
+
+        float halfAngle = angle * 0.5f;
+        float sinHalfAngle = std::sin(halfAngle);
+
+        x = normalizedAxis.x * sinHalfAngle;
+        y = normalizedAxis.y * sinHalfAngle;
+        z = normalizedAxis.z * sinHalfAngle;
+        w = std::cos(halfAngle);
     }
 
-    Vec3 AABB::GetExtents() const {
-	    return (max - min) * 0.5f;
+    Quat Quat::operator*(const Quat& other) const {
+        return {
+	        w * other.x + x * other.w + y * other.z - z * other.y,
+            w * other.y - x * other.z + y * other.w + z * other.x,
+            w * other.z + x * other.y - y * other.x + z * other.w,
+            w * other.w - x * other.x - y * other.y - z * other.z
+        };
     }
 
-    Vec3 AABB::GetSize() const {
-	    return max - min;
+    Quat& Quat::operator*=(const Quat& other) {
+        *this = *this * other;
+        return *this;
     }
 
-    float AABB::GetVolume() const {
-	    Vec3 size = GetSize();
-	    return size.x * size.y * size.z;
+    Quat Quat::operator*(float scalar) const {
+        return {x * scalar, y * scalar, z * scalar, w * scalar};
     }
 
-    bool AABB::Contains(const Vec3& point) const {
-	    return point.x >= min.x && point.x <= max.x &&
-		    point.y >= min.y && point.y <= max.y &&
-		    point.z >= min.z && point.z <= max.z;
+    Quat Quat::operator/(float scalar) const {
+        return {x / scalar, y / scalar, z / scalar, w / scalar};
     }
 
-    bool AABB::Intersects(const AABB& other) const {
-	    return min.x <= other.max.x && max.x >= other.min.x &&
-		    min.y <= other.max.y && max.y >= other.min.y &&
-		    min.z <= other.max.z && max.z >= other.min.z;
+    Quat& Quat::operator/=(float scalar) {
+        x /= scalar;
+        y /= scalar;
+        z /= scalar;
+        w /= scalar;
+        return *this;
     }
 
-    void AABB::Expand(const Vec3& point) {
-	    min.x = std::min(min.x, point.x);
-	    min.y = std::min(min.y, point.y);
-	    min.z = std::min(min.z, point.z);
-
-	    max.x = std::max(max.x, point.x);
-	    max.y = std::max(max.y, point.y);
-	    max.z = std::max(max.z, point.z);
+    Quat Quat::operator+(const Quat& other) const {
+        return {x + other.x, y + other.y, z + other.z, w + other.w};
     }
 
-    void AABB::Expand(const AABB& other) {
-	    min.x = std::min(min.x, other.min.x);
-	    min.y = std::min(min.y, other.min.y);
-	    min.z = std::min(min.z, other.min.z);
-
-	    max.x = std::max(max.x, other.max.x);
-	    max.y = std::max(max.y, other.max.y);
-	    max.z = std::max(max.z, other.max.z);
+    Quat Quat::operator-(const Quat& other) const {
+        return {x - other.x, y - other.y, z - other.z, w - other.w};
     }
 
-    AABB AABB::FromCenterExtents(const Vec3& center, const Vec3& extents) {
-	    return AABB(center - extents, center + extents);
+    bool Quat::operator==(const Quat& other) const {
+        return x == other.x && y == other.y && z == other.z && w == other.w;
     }
 
-    Ray::Ray(): origin(0.0f, 0.0f, 0.0f), direction(0.0f, 0.0f, 1.0f) {
+    bool Quat::operator!=(const Quat& other) const {
+        return !(*this == other);
     }
 
-    Ray::Ray(const Vec3& origin, const Vec3& direction): origin(origin), direction(direction.Normalized()) {
+    float Quat::Length() const {
+        return std::sqrt(x * x + y * y + z * z + w * w);
     }
 
-    Vec3 Ray::GetPoint(float distance) const {
-	    return origin + direction * distance;
+    float Quat::SquaredLength() const {
+        return x * x + y * y + z * z + w * w;
     }
 
-    bool Ray::Intersects(const AABB& aabb, float& distance) const {
-	    float tmin = 0.0f;
-	    float tmax = std::numeric_limits<float>::max();
+    Quat Quat::Normalized() const {
+        float len = Length();
+        if (len < 0.0001f){
+            return Identity;
+        }
+        return *this / len;
+    }
 
-	    for (int i = 0; i < 3; ++i){
-		    float component = i == 0 ? direction.x : (i == 1 ? direction.y : direction.z);
+    void Quat::Normalize() {
+        float len = Length();
+        if (len >= 0.0001f){
+            *this /= len;
+        } else{
+            *this = Identity;
+        }
+    }
 
-		    if (std::abs(component) < 0.0001f){
-			    float min = i == 0 ? aabb.min.x : (i == 1 ? aabb.min.y : aabb.min.z);
-			    float max = i == 0 ? aabb.max.x : (i == 1 ? aabb.max.y : aabb.max.z);
-			    float orig = i == 0 ? origin.x : (i == 1 ? origin.y : origin.z);
+    Quat Quat::Conjugate() const {
+        return {-x, -y, -z, w};
+    }
 
-			    if (orig < min || orig > max){
-				    return false;
-			    }
-		    } else{
-			    float invD = 1.0f / component;
-			    float min = i == 0 ? aabb.min.x : (i == 1 ? aabb.min.y : aabb.min.z);
-			    float max = i == 0 ? aabb.max.x : (i == 1 ? aabb.max.y : aabb.max.z);
-			    float orig = i == 0 ? origin.x : (i == 1 ? origin.y : origin.z);
+    Quat Quat::Inverse() const {
+        float sqLen = SquaredLength();
+        if (sqLen < 0.0001f){
+            return Identity;
+        }
+        return Conjugate() / sqLen;
+    }
 
-			    float t1 = (min - orig) * invD;
-			    float t2 = (max - orig) * invD;
+    Vec3 Quat::RotateVector(const Vec3& v) const {
+        // q * v * q^-1
+        Quat vecQuat(v.x, v.y, v.z, 0.0f);
+        Quat result = *this * vecQuat * Conjugate();
+        return {result.x, result.y, result.z};
+    }
 
-			    if (t1 > t2){
-				    std::swap(t1, t2);
-			    }
+    Quat Quat::FromEulerAngles(float pitch, float yaw, float roll) {
+        // ピッチ(X)、ヨー(Y)、ロール(Z)からクォータニオンを生成
+        float cy = std::cos(yaw * 0.5f);
+        float sy = std::sin(yaw * 0.5f);
+        float cp = std::cos(pitch * 0.5f);
+        float sp = std::sin(pitch * 0.5f);
+        float cr = std::cos(roll * 0.5f);
+        float sr = std::sin(roll * 0.5f);
 
-			    tmin = std::max(tmin, t1);
-			    tmax = std::min(tmax, t2);
+        Quat q;
+        q.w = cr * cp * cy + sr * sp * sy;
+        q.x = sr * cp * cy - cr * sp * sy;
+        q.y = cr * sp * cy + sr * cp * sy;
+        q.z = cr * cp * sy - sr * sp * cy;
 
-			    if (tmin > tmax){
-				    return false;
-			    }
-		    }
-	    }
+        return q;
+    }
 
-	    distance = tmin;
-	    return true;
+    Quat Quat::FromAxisAngle(const Vec3& axis, float angle) {
+        return Quat(axis, angle);
+    }
+
+    Quat Quat::Lerp(const Quat& a, const Quat& b, float t) {
+        // 線形補間
+        Quat result;
+        float t_ = 1.0f - t;
+
+        result.x = t_ * a.x + t * b.x;
+        result.y = t_ * a.y + t * b.y;
+        result.z = t_ * a.z + t * b.z;
+        result.w = t_ * a.w + t * b.w;
+
+        return result.Normalized();
+    }
+
+    Quat Quat::Slerp(const Quat& a, const Quat& b, float t) {
+        // 球面線形補間
+        Quat q1 = a;
+        Quat q2 = b;
+
+        float dot = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+
+        // 最短経路を取るための調整
+        if (dot < 0.0f){
+            q2 = Quat(-q2.x, -q2.y, -q2.z, -q2.w);
+            dot = -dot;
+        }
+
+        // 非常に近い場合は線形補間を使用
+        if (dot > 0.9995f){
+            return Lerp(q1, q2, t);
+        }
+
+        // 実際のSlerp
+        float angle = std::acos(dot);
+        float sinAngle = std::sin(angle);
+
+        float t1 = std::sin((1.0f - t) * angle) / sinAngle;
+        float t2 = std::sin(t * angle) / sinAngle;
+
+        return {
+	        q1.x * t1 + q2.x * t2,
+            q1.y * t1 + q2.y * t2,
+            q1.z * t1 + q2.z * t2,
+            q1.w * t1 + q2.w * t2
+        };
     }
 }

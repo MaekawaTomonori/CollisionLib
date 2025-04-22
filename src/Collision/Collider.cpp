@@ -58,7 +58,7 @@ namespace Collision{
     }
 
     Collider* Collider::SetTranslate(const Vec3& _translate) {
-        translate_ = _translate;
+        _translate;
         return this;
     }
 

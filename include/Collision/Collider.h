@@ -4,14 +4,20 @@
 #include <shared_mutex>
 #include <variant>
 
-#include "Collision/Ray.h"
 #include "sys/Mathematics.h"
 
 namespace Collision {
 	class Manager;
 	class Collider;
-	struct Sphere;
-	struct AABB;
+	class Sphere;
+	class AABB;
+	class Ray;
+
+	class CollideBody{
+        Vec3 translate_;
+        std::variant<float, Vec3> size_;
+		
+	};
 
 	enum class Type{
 		Sphere,
@@ -48,11 +54,9 @@ namespace Collision {
 
 		std::string uuid_;
 
-        std::unique_ptr<Body> body_ = nullptr;
-
-        Type type_ = Type::None;
-		Vec3 translate_{};
-        Size size_ {};
+		//Set
+		Type type_ = Type::None;
+		std::unique_ptr<Body> body_ = nullptr;
 
         Manager* manager_ = nullptr;
 
@@ -91,8 +95,8 @@ namespace Collision {
         Type GetType() const;
         uint32_t GetAttribute() const;
         uint32_t GetIgnore() const;
-        Size GetSize() const;
         Vec3 GetTranslate() const;
+        Size GetSize() const;
         void* GetOwner() const;
     };
 }

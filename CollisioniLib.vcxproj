@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Collision\Sphere.h" />
     <ClInclude Include="src\Collision\AABB.h" />
     <ClInclude Include="include\Collision\Collider.h" />
     <ClInclude Include="include\Collision\CollisionManager.h" />
@@ -28,6 +29,7 @@
     <ClInclude Include="src\sys\System.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Collision\Sphere.cpp" />
     <ClCompile Include="src\Collision\AABB.cpp" />
     <ClCompile Include="src\Collision\Ray.cpp" />
     <ClCompile Include="src\Collision\Collider.cpp" />

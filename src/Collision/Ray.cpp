@@ -1,17 +1,24 @@
-#include "Ray.h"
-#include <cmath>
+ï»¿#include "Ray.h"
 
 #include "AABB.h"
-#include "sys/Mathematics.h"
+#include "Sphere.h"
 
-namespace Collision {
-    Ray::Ray()
-        : origin_(Vec3::Zero), direction_(Vec3::Forward), length_(1000.0f) {
+namespace Collision{
+	Ray::Ray() : origin_(0.0f, 0.0f, 0.0f), direction_(0.0f, 0.0f, 1.0f) {
     }
 
-    Ray::Ray(const Vec3& origin, const Vec3& direction, float length)
-        : origin_(origin), direction_(direction), length_(length) {
-        // Normalize direction
+	Ray::Ray(const Vec3& origin, const Vec3& direction)
+        : origin_(origin) {
+        SetDirection(direction);  // æ–¹å‘ãƒ™ã‚¯ãƒˆãƒ«ã‚’æ­£è¦åŒ–
+    }
+
+    void Ray::SetOrigin(const Vec3& origin) {
+        origin_ = origin;
+    }
+
+    void Ray::SetDirection(const Vec3& direction) {
+        // æ–¹å‘ãƒ™ã‚¯ãƒˆãƒ«ã‚’å¿…ãšæ­£è¦åŒ–ã™ã‚‹
+        direction_ = direction;
         direction_.Normalize();
     }
 
@@ -23,142 +30,86 @@ namespace Collision {
         return direction_;
     }
 
-    float Ray::GetLength() const {
-        return length_;
-    }
-
-    bool Ray::IsEnabled() const {
-        return enable_;
-    }
-
-    void Ray::SetOrigin(const Vec3& origin) {
-        origin_ = origin;
-    }
-
-    void Ray::SetDirection(const Vec3& direction) {
-        direction_ = direction;
-        direction_.Normalize();
-    }
-
-    void Ray::SetLength(float length) {
-        length_ = length;
-    }
-
-    void Ray::Enable() {
-        enable_ = true;
-    }
-
-    void Ray::Disable() {
-        enable_ = false;
-    }
-
-    Vec3 Ray::GetPointAtDistance(float distance) const {
+    Vec3 Ray::GetPoint(float distance) const {
         return origin_ + direction_ * distance;
     }
 
-    bool Ray::Intersects(const Vec3& point) const {
-        Vec3 toPoint = point - origin_;
-        float projection = Vec3::Dot(toPoint, direction_);
-        if (projection < 0 || projection > length_) return false;
+    bool Ray::Intersect(const Sphere& sphere, float* distance) const {
+        // åŸç‚¹-çƒã®ä¸­å¿ƒã¸ã®ãƒ™ã‚¯ãƒˆãƒ«
+        Vec3 m = origin_ - sphere.GetCenter();
 
-        Vec3 closestPoint = origin_ + direction_ * projection;
-        return (closestPoint - point).SquaredLength() < 1e-6f;
-    }
-
-    bool Ray::Intersects(const AABB& aabb) const {
-        if (!enable_) return false;
-
-        float tmin = 0.0f;
-        float tmax = length_;
-
-        // X²•ûŒü‚Ì”»’è
-        if (std::abs(direction_.x) < 1e-6f) {
-            // Ray‚Íx²‚É•½s
-            if (origin_.x < aabb.min.x || origin_.x > aabb.max.x)
-                return false;
-        } else {
-            // X²•ûŒü‚ÌŒğ·‚ğŒvZ
-            float invD = 1.0f / direction_.x;
-            float t1 = (aabb.min.x - origin_.x) * invD;
-            float t2 = (aabb.max.x - origin_.x) * invD;
-
-            // Œğ·”ÍˆÍ‚ğ’²®
-            if (t1 > t2) std::swap(t1, t2);
-            tmin = std::max(tmin, t1);
-            tmax = std::min(tmax, t2);
-            if (tmin > tmax) return false;
-        }
-
-        // Y²•ûŒü‚Ì”»’è
-        if (std::abs(direction_.y) < 1e-6f) {
-            // Ray‚Íy²‚É•½s
-            if (origin_.y < aabb.min.y || origin_.y > aabb.max.y)
-                return false;
-        } else {
-            // Y²•ûŒü‚ÌŒğ·‚ğŒvZ
-            float invD = 1.0f / direction_.y;
-            float t1 = (aabb.min.y - origin_.y) * invD;
-            float t2 = (aabb.max.y - origin_.y) * invD;
-
-            // Œğ·”ÍˆÍ‚ğ’²®
-            if (t1 > t2) std::swap(t1, t2);
-            tmin = std::max(tmin, t1);
-            tmax = std::min(tmax, t2);
-            if (tmin > tmax) return false;
-        }
-
-        // Z²•ûŒü‚Ì”»’è
-        if (std::abs(direction_.z) < 1e-6f) {
-            // Ray‚Íz²‚É•½s
-            if (origin_.z < aabb.min.z || origin_.z > aabb.max.z)
-                return false;
-        } else {
-            // Z²•ûŒü‚ÌŒğ·‚ğŒvZ
-            float invD = 1.0f / direction_.z;
-            float t1 = (aabb.min.z - origin_.z) * invD;
-            float t2 = (aabb.max.z - origin_.z) * invD;
-
-            // Œğ·”ÍˆÍ‚ğ’²®
-            if (t1 > t2) std::swap(t1, t2);
-            tmin = std::max(tmin, t1);
-            tmax = std::min(tmax, t2);
-            if (tmin > tmax) return false;
-        }
-
-        // Œğ·“_‚ªRay‚Ì’·‚³“à‚É‚ ‚é‚©Šm”F
-        return tmin <= length_;
-    }
-
-    bool Ray::IntersectsSphere(const Vec3& center, float radius) const {
-        if (!enable_) return false;
-
-        // ‹…‚Ì’†S‚©‚çRay‚Ìn“_‚Ö‚ÌƒxƒNƒgƒ‹
-        Vec3 m = origin_ - center;
-        
-        // “ñŸ•û’ö®‚ÌŒW”
+        // ä¿‚æ•°è¨ˆç®—ï¼ˆã‚ªãƒ¼ãƒãƒ¼ãƒ˜ãƒƒãƒ‰å‰Šæ¸›ã®ãŸã‚äº‹å‰è¨ˆç®—ï¼‰
         float b = Vec3::Dot(m, direction_);
-        float c = Vec3::Dot(m, m) - radius * radius;
-        
-        // ‹…‚ªRay‚ÌŒã‚ë‚É‚ ‚èA‚©‚ÂRay‚ª‹…‚ÌŠO‚É‚ ‚éê‡‚ÍŒğ·‚µ‚È‚¢
-        if (c > 0.0f && b > 0.0f) return false;
-        
-        // ”»•Ê®
-        float discr = b * b - c;
-        
-        // •‰‚Ì”»•Ê®‚ÍŒğ·‚È‚µ‚ğˆÓ–¡‚·‚é
-        if (discr < 0.0f) return false;
-        
-        // Œğ·“_‚Ü‚Å‚Ì‹——£‚ğŒvZ
-        float t = -b - std::sqrt(discr);
-        
-        // Œğ·“_‚ªŒã‚ë‚É‚ ‚éê‡‚Í“ñ”Ô–Ú‚ÌŒğ·“_‚ğƒ`ƒFƒbƒN
-        if (t < 0.0f)
-            t = -b + std::sqrt(discr);
-        
-        // Œğ·“_‚ªRay‚ÌŒã‚ë‚É‚ ‚éê‡‚ÍŒğ·‚È‚µ
-        if (t < 0.0f) return false;
-        
-        // Œğ·“_‚ªRay‚Ì’·‚³“à‚É‚ ‚é‚©Šm”F
-        return t <= length_;
+        float c = Vec3::Dot(m, m) - sphere.GetRadius() * sphere.GetRadius();
+
+        // çƒã®å¤–å´ã«ã„ã¦ã€çƒã‹ã‚‰é ã–ã‹ã‚‹å ´åˆã¯æ—©æœŸãƒªã‚¿ãƒ¼ãƒ³
+        if (c > 0.0f && b > 0.0f){
+            return false;
+        }
+
+        float discriminant = b * b - c;
+
+        // åˆ¤åˆ¥å¼ãŒè² ãªã‚‰äº¤å·®ãªã—
+        if (discriminant < 0.0f){
+            return false;
+        }
+
+        // äº¤å·®è·é›¢ã®è¨ˆç®—
+        float t = -b - std::sqrt(discriminant);
+
+        // äº¤å·®ç‚¹ãŒå§‹ç‚¹ã‚ˆã‚Šæ‰‹å‰ãªã‚‰ã€å§‹ç‚¹ã®åå¯¾å´ã«äº¤å·®
+        if (t < 0.0f){
+            t = -b + std::sqrt(discriminant);
+        }
+
+        // ãã‚Œã§ã‚‚è² ãªã‚‰äº¤å·®ãªã—ï¼ˆãƒ¬ã‚¤ã®å¾Œã‚å´ï¼‰
+        if (t < 0.0f){
+            return false;
+        }
+
+        if (distance){
+            *distance = t;
+        }
+
+        return true;
     }
-}
+
+    bool Ray::Intersect(const AABB& aabb, float* distance) const {
+        Vec3 min = aabb.GetMin();
+        Vec3 max = aabb.GetMax();
+        float tmin = 0.0f;
+        float tmax = std::numeric_limits<float>::max();
+
+        // å„è»¸ã§äº¤å·®åˆ¤å®šï¼ˆã‚¹ãƒ©ãƒ–æ³•ï¼‰
+        for (int i = 0; i < 3; ++i){
+            if (std::abs(direction_[i]) < std::numeric_limits<float>::epsilon()){
+                // ãƒ¬ã‚¤ã®æ–¹å‘ãŒã“ã®è»¸ã¨å¹³è¡Œã®ã¨ã
+                if (origin_[i] < min[i] || origin_[i] > max[i]){
+                    return false;
+                }
+            } else{
+                float ood = 1.0f / direction_[i];
+                float t1 = (min[i] - origin_[i]) * ood;
+                float t2 = (max[i] - origin_[i]) * ood;
+
+                if (t1 > t2){
+                    std::swap(t1, t2);
+                }
+
+                tmin = t1 > tmin ? t1 : tmin;
+                tmax = t2 < tmax ? t2 : tmax;
+
+                if (tmin > tmax){
+                    return false;
+                }
+            }
+        }
+
+        if (distance){
+            *distance = tmin;
+        }
+
+        return true;
+    }
+
+}  // namespace CollisionLib

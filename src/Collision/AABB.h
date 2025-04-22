@@ -20,5 +20,8 @@ namespace Collision{
                     point.y >= min.y && point.y <= max.y &&
                     point.z >= min.z && point.z <= max.z);
         }
+
+        const Vec3& GetMin() const;
+        const Vec3& GetMax() const;
     };
 }
