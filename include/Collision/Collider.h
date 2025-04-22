@@ -14,9 +14,8 @@ namespace Collision {
 	class Ray;
 
 	class CollideBody{
-        Vec3 translate_;
-        std::variant<float, Vec3> size_;
-		
+	protected:
+        Transform transform_;
 	};
 
 	enum class Type{
@@ -44,7 +43,6 @@ namespace Collision {
 	};
 
     class Collider{
-        using Body = std::variant<Sphere, AABB, Ray>;
     	using Size = std::variant<float, Vec3>;
 		using CBFunc = std::function<void(const Collider*)>;
 
@@ -56,7 +54,7 @@ namespace Collision {
 
 		//Set
 		Type type_ = Type::None;
-		std::unique_ptr<Body> body_ = nullptr;
+		std::unique_ptr<CollideBody> body_ = nullptr;
 
         Manager* manager_ = nullptr;
 
@@ -91,12 +89,15 @@ namespace Collision {
         void OnCollision(Event _event) const;
 
 		std::string GetUniqueId() const;
-        const Body& GetBody() const;
+        const CollideBody& GetBody() const;
         Type GetType() const;
         uint32_t GetAttribute() const;
         uint32_t GetIgnore() const;
         Vec3 GetTranslate() const;
         Size GetSize() const;
         void* GetOwner() const;
+
+    private:
+		void SetBody();
     };
 }

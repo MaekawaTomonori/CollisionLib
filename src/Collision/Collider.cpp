@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "Sphere.h"
 #include "Collision/CollisionManager.h"
 #include "sys/Singleton.h"
 #include "sys/System.h"
@@ -33,6 +34,14 @@ namespace Collision{
 	}
 
 	void Collider::Enable() {
+        //óLå¯âªèàóù
+        if (type_ == Type::None){
+            throw std::runtime_error("Collider type is not set");
+        }
+
+
+
+
         enable_ = true;
     }
 
@@ -133,5 +142,18 @@ namespace Collision{
 
     void* Collider::GetOwner() const {
         return owner_;
+    }
+
+    void Collider::SetBody() {
+        std::unique_ptr<CollideBody> p;
+	    switch (type_){
+	    case Type::Sphere:
+            p = std::make_unique<Sphere>();
+		    break;
+	    case Type::AABB:
+		    break;
+	    case Type::Ray:
+		    break;
+	    }
     }
 }
