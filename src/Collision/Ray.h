@@ -29,6 +29,7 @@ namespace Collision {
 
         // Intersection methods
         bool Intersects(const AABB& aabb) const;
+        bool Intersects(const Vec3& point) const;
         bool IntersectsSphere(const Vec3& center, float radius) const;
         Vec3 GetPointAtDistance(float distance) const;
     };
