@@ -21,10 +21,6 @@ namespace Collision{
 
 	Collider::Collider() :manager_(Singleton<Manager>::Get()){
         uuid_ = System::CreateUniqueId();
-        if (!manager_->Register(this)){
-            throw std::runtime_error("Failed to register collider");
-        }
-        registered_ = true;
 	}
 
 	Collider::~Collider() {
@@ -40,6 +36,10 @@ namespace Collision{
         }
 
 
+        if (!manager_->Register(this)){
+            throw std::runtime_error("Failed to register collider");
+        }
+        registered_ = true;
 
 
         enable_ = true;
