@@ -134,15 +134,14 @@ namespace Collision{
 
     Ray::Ray() :origin_({}), direction_({}), length_(0), manager_(Singleton<Manager>::Get()) {
         data_.uuid = System::CreateUniqueId();
+        data_.type = Type::Ray;
     }
 
-    Ray::Ray(const Vec3& origin, const Vec3& direction) {
+    Ray::Ray(const Vec3& origin, const Vec3& direction, float length) :Ray(){
         origin_ = origin;
         direction_ = direction;
-        length_ = direction.Length();
         direction_.Normalize();
-        manager_ = Singleton<Manager>::Get();
-        data_.uuid = System::CreateUniqueId();
+        length_ = length;
     }
 
     const Vec3& Ray::GetOrigin() const {

@@ -313,8 +313,15 @@ namespace Collision{
         isProcessingCollisions_ = false;
     }
 
-    void Manager::RayCast() {
-
+    void Manager::RayCast(const Ray* _ray) {
+        if (!_ray) return;
+        std::shared_lock lock(mutex_);
+        for (const auto& [key, value] : colliders_){
+            if (value->IsEnabled()){
+                if (Detect(, value)){
+                }
+            }
+        }
     }
 
     bool Manager::Filter(const Pair& pair) const {

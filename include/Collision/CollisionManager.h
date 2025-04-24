@@ -63,9 +63,9 @@ namespace Collision{
          */
         void ProcessEvent();
 
-        void RayCast();
+        void RayCast(const Ray* _ray);
 
-        private:
+    private:
 
         void  ProcessPendingRegistrations();
         void AddTask(std::function<void()> task);

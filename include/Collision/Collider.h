@@ -11,8 +11,9 @@ namespace Collision{
 	class Collider;
 
 	enum class Type{
-		AABB,
 		Sphere,
+		AABB,
+		Ray,
 
 		None
 	};
@@ -33,7 +34,7 @@ namespace Collision{
 		const Collider* GetOther() const;
 	};
 
-	struct Data{
+	struct MetaData{
 		std::string uuid;
 		Type type = Type::None;
 
@@ -41,6 +42,10 @@ namespace Collision{
 		uint32_t ignore = 0b0;
 
 		void* owner = nullptr;
+	};
+
+	class Body{
+		
 	};
 
 	class Collider{
@@ -51,7 +56,6 @@ namespace Collision{
 		std::atomic<bool> registered_ = false;
 		std::shared_mutex mutex_;
 
-		Data data_;
 		Vec3 translate_ {};
 		Size size_ {};
 
@@ -101,7 +105,7 @@ namespace Collision{
 
     public:
 		Ray();
-        Ray(const Vec3& origin, const Vec3& direction);
+        Ray(const Vec3& _origin, const Vec3& _direction, float _length);
         const Vec3& GetOrigin() const;
         const Vec3& GetDirection() const;
         const float& GetLength() const;
@@ -111,6 +115,5 @@ namespace Collision{
 		uint32_t GetAttribute() const;
 		uint32_t GetIgnore() const;
 		void* GetOwner() const;
-
 	};
 }
