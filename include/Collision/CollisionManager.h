@@ -63,10 +63,11 @@ namespace Collision{
          */
         void ProcessEvent();
 
-        void  ProcessPendingRegistrations();
+        void RayCast();
 
         private:
 
+        void  ProcessPendingRegistrations();
         void AddTask(std::function<void()> task);
         void WaitForTasks();
 

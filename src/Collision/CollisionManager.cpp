@@ -1,4 +1,4 @@
-﻿#include "CollisionManager.h"
+﻿#include "Collision/CollisionManager.h"
 #include <algorithm>
 #include <condition_variable>
 #include <queue>
@@ -311,6 +311,10 @@ namespace Collision{
 
         // 処理終了フラグを下げる
         isProcessingCollisions_ = false;
+    }
+
+    void Manager::RayCast() {
+
     }
 
     bool Manager::Filter(const Pair& pair) const {

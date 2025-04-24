@@ -1,12 +1,11 @@
-#include "Collider.h"
+#include "Collision/Collider.h"
 
 #include <format>
 #include <utility>
 
-#include "CollisionManager.h"
-#include "../../../Engine/project/engine/func/commonFunc/Logger.h"
-#include "sys/Singleton.h"
-#include "sys/System.h"
+#include "Collision/CollisionManager.h"
+#include "src/sys/Singleton.h"
+#include "src/sys/System.h"
 
 namespace Collision{
 	Event::Event(EventType _type, const Collider* _collider) :type_(_type), other_(_collider) {
@@ -21,7 +20,7 @@ namespace Collision{
 	}
 
 	Collider::Collider() :manager_(Singleton<Manager>::Get()){
-        uuid_ = System::CreateUniqueId();
+        data_.uuid = System::CreateUniqueId();
         if (!manager_->Register(this)){
             throw std::runtime_error("Failed to register collider");
         }
@@ -55,7 +54,7 @@ namespace Collision{
     }
 
     Collider* Collider::SetType(const Type _type) {
-        type_ = _type;
+        data_.type = _type;
         return this;
     }
 
@@ -75,51 +74,50 @@ namespace Collision{
 	}
 
 	Collider* Collider::AddAttribute(const uint32_t _attribute) {
-        attribute_ |= _attribute;
+        data_.attribute |= _attribute;
         return this;
 	}
 
 	Collider* Collider::RemoveAttribute(const uint32_t _attribute) {
-        attribute_ &= ~_attribute;
+        data_.attribute &= ~_attribute;
         return this;
 	}
 
 	Collider* Collider::AddIgnore(const uint32_t _ignore) {
-        ignore_ |= _ignore;
+        data_.ignore |= _ignore;
         return this;
 	}
 
 	Collider* Collider::RemoveIgnore(const uint32_t _ignore) {
-        ignore_ &= ~_ignore;
+        data_.ignore &= ~_ignore;
         return this;
 	}
 
 	Collider* Collider::SetOwner(void* _owner) {
-        owner_ = _owner;
+        data_.owner = _owner;
         return this;
 	}
 
 	void Collider::OnCollision(const Event _event) const {
 		if (const CBFunc callback = onCollisions_[static_cast<int>(_event.GetType())]){
-            Logger::Log(std::format("Type : {}, {} , HitPos : {},{},{}\n", static_cast<int>(type_), static_cast<int>(_event.GetOther()->GetType()), translate_.x, translate_.y, translate_.z));
             callback(_event.GetOther());
         }
     }
 
 	std::string Collider::GetUniqueId() const {
-        return uuid_;
+        return data_.uuid;
 	}
 
 	Type Collider::GetType() const {
-        return type_;
+        return data_.type;
 	}
 
     uint32_t Collider::GetAttribute() const {
-        return attribute_;
+        return data_.attribute;
 	}
 
     uint32_t Collider::GetIgnore() const {
-        return ignore_;
+        return data_.ignore;
     }
 
     Collider::Size Collider::GetSize() const {
@@ -131,6 +129,51 @@ namespace Collision{
     }
 
     void* Collider::GetOwner() const {
-        return owner_;
+        return data_.owner;
+    }
+
+    Ray::Ray() :origin_({}), direction_({}), length_(0), manager_(Singleton<Manager>::Get()) {
+        data_.uuid = System::CreateUniqueId();
+    }
+
+    Ray::Ray(const Vec3& origin, const Vec3& direction) {
+        origin_ = origin;
+        direction_ = direction;
+        length_ = direction.Length();
+        direction_.Normalize();
+        manager_ = Singleton<Manager>::Get();
+        data_.uuid = System::CreateUniqueId();
+    }
+
+    const Vec3& Ray::GetOrigin() const {
+        return origin_;
+    }
+
+    const Vec3& Ray::GetDirection() const {
+        return direction_;
+    }
+
+    const float& Ray::GetLength() const {
+        return length_;
+    }
+
+    std::string Ray::GetUniqueId() const {
+        return data_.uuid;
+    }
+
+    Type Ray::GetType() const {
+        return data_.type;
+    }
+
+    uint32_t Ray::GetAttribute() const {
+        return data_.attribute;
+    }
+
+    uint32_t Ray::GetIgnore() const {
+        return data_.ignore;
+    }
+
+    void* Ray::GetOwner() const {
+        return data_.owner;
     }
 }

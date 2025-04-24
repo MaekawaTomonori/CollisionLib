@@ -2,10 +2,11 @@
 #include <functional>
 #include <shared_mutex>
 #include <variant>
+#include <array>
 
-#include "sys/Mathematics.h"
+#include <src/sys/Mathematics.h>
 
-namespace Collision {
+namespace Collision{
 	class Manager;
 	class Collider;
 
@@ -19,41 +20,45 @@ namespace Collision {
 	enum class EventType{
 		Trigger,
 		Stay,
-        Exit
+		Exit
 	};
 
 	class Event{
-        EventType type_;
-        const Collider* other_;
+		EventType type_;
+		const Collider* other_;
 
-	public:
+		public:
 		Event(EventType, const Collider*);
 		EventType GetType() const;
-        const Collider* GetOther() const;
+		const Collider* GetOther() const;
 	};
 
-    class Collider{
-    	using Size = std::variant<float, Vec3>;
+	struct Data{
+		std::string uuid;
+		Type type = Type::None;
+
+		uint32_t attribute = 0b0;
+		uint32_t ignore = 0b0;
+
+		void* owner = nullptr;
+	};
+
+	class Collider{
+		using Size = std::variant<float, Vec3>;
 		using CBFunc = std::function<void(const Collider*)>;
 
 		std::atomic<bool> enable_ = false;
-    	std::atomic<bool> registered_ = false;
+		std::atomic<bool> registered_ = false;
 		std::shared_mutex mutex_;
 
-		std::string uuid_;
+		Data data_;
+		Vec3 translate_ {};
+		Size size_ {};
 
-        Type type_ = Type::None;
-		Vec3 translate_{};
-        Size size_ {};
-
-        Manager* manager_ = nullptr;
+		Manager* manager_ = nullptr;
 
 		std::array<CBFunc, 3> onCollisions_;
 
-		uint32_t attribute_ = 0b0;
-		uint32_t ignore_ = 0b0;
-
-        void* owner_ = nullptr;
 
 	public:
 		Collider();
@@ -66,24 +71,46 @@ namespace Collision {
 
 		bool IsRegistered() const;
 
-        Collider* SetType(const Type _type);
-        Collider* SetTranslate(const Vec3& _translate);
-    	Collider* SetSize(const Size _size);
-        Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
-        Collider* AddAttribute(uint32_t _attribute);
-        Collider* RemoveAttribute(uint32_t _attribute);
-        Collider* AddIgnore(uint32_t _ignore);
-        Collider* RemoveIgnore(uint32_t _ignore);
-        Collider* SetOwner(void* _owner);
+		Collider* SetType(const Type _type);
+		Collider* SetTranslate(const Vec3& _translate);
+		Collider* SetSize(const Size _size);
+		Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
+		Collider* AddAttribute(uint32_t _attribute);
+		Collider* RemoveAttribute(uint32_t _attribute);
+		Collider* AddIgnore(uint32_t _ignore);
+		Collider* RemoveIgnore(uint32_t _ignore);
+		Collider* SetOwner(void* _owner);
 
-        void OnCollision(Event _event) const;
+		void OnCollision(Event _event) const;
 
 		std::string GetUniqueId() const;
-        Type GetType() const;
-        uint32_t GetAttribute() const;
-        uint32_t GetIgnore() const;
-        Size GetSize() const;
-        Vec3 GetTranslate() const;
-        void* GetOwner() const;
-    };
+		Type GetType() const;
+		uint32_t GetAttribute() const;
+		uint32_t GetIgnore() const;
+		Size GetSize() const;
+		Vec3 GetTranslate() const;
+		void* GetOwner() const;
+	};
+
+    class Ray{
+        Vec3 origin_;
+        Vec3 direction_;
+        float length_;
+        Data data_;
+		Manager* manager_ = nullptr;
+
+    public:
+		Ray();
+        Ray(const Vec3& origin, const Vec3& direction);
+        const Vec3& GetOrigin() const;
+        const Vec3& GetDirection() const;
+        const float& GetLength() const;
+
+		std::string GetUniqueId() const;
+		Type GetType() const;
+		uint32_t GetAttribute() const;
+		uint32_t GetIgnore() const;
+		void* GetOwner() const;
+
+	};
 }
