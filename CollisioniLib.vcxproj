@@ -19,8 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Collision\Sphere.h" />
+    <ClInclude Include="src\Collision\AABB.h" />
     <ClInclude Include="include\Collision\Collider.h" />
     <ClInclude Include="include\Collision\CollisionManager.h" />
+    <ClInclude Include="src\Collision\Ray.h" />
     <ClInclude Include="src\sys\Mathematics.h" />
     <ClInclude Include="src\sys\Singleton.h" />
     <ClInclude Include="src\sys\System.h" />
@@ -151,6 +154,7 @@
       <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(SolutionDir)GameProject;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>

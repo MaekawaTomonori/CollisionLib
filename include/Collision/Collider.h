@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <functional>
 #include <shared_mutex>
 #include <variant>
@@ -9,6 +10,14 @@
 namespace Collision{
 	class Manager;
 	class Collider;
+	class Sphere;
+	class AABB;
+	class Ray;
+
+	class CollideBody{
+	protected:
+        Transform transform_;
+	};
 
 	enum class Type{
 		Sphere,
@@ -63,7 +72,7 @@ namespace Collision{
 		Vec3 translate_ {};
 		Size size_ {};
 
-        Data data_ {};
+    Data data_ {};
 
 		Manager* manager_ = nullptr;
 

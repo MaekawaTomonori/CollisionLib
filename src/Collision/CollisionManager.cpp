@@ -176,7 +176,6 @@ namespace Collision{
         const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
 
         EventTimer::GetInstance()->BeginEvent("Thread");
-
         // 各スレッドにタスクを割り当て
         for (uint32_t t = 0; t < totalTasks; ++t){
             const size_t start = t * chunkSize;
@@ -211,7 +210,6 @@ namespace Collision{
         }
 
         EventTimer::GetInstance()->EndEvent("Thread");
-
         // 結果をマージ
         {
             std::unique_lock lock(mutex_);
