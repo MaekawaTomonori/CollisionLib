@@ -135,8 +135,6 @@ namespace Collision{
     Ray::Ray() :origin_({}), direction_({}), length_(0), manager_(Singleton<Manager>::Get()) {
         data_.uuid = System::CreateUniqueId();
         data_.type = Type::Ray;
-
-        manager_->Register(this);
     }
 
     Ray::Ray(const Vec3& origin, const Vec3& direction, float length) :Ray(){

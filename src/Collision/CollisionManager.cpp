@@ -417,5 +417,6 @@ namespace Collision{
         // 衝突データを作成
         RayHitData hitData{{ray->GetUniqueId(), collider->GetUniqueId()}, hit_point};
         hitRays_.push_back(hitData);
+        return true;
     }
 }

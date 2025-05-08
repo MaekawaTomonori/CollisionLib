@@ -3,9 +3,8 @@
 #include <functional>
 #include <shared_mutex>
 #include <variant>
-#include <array>
 
-#include <src/sys/Mathematics.h>
+#include "Mathematics.h"
 
 namespace Collision{
 	class Manager;
@@ -13,11 +12,6 @@ namespace Collision{
 	class Sphere;
 	class AABB;
 	class Ray;
-
-	class CollideBody{
-	protected:
-        Transform transform_;
-	};
 
 	enum class Type{
 		Sphere,

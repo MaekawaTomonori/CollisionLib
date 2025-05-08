@@ -1,4 +1,4 @@
-﻿#include "Mathematics.h"
+﻿#include "Collision/Mathematics.h"
 
 namespace Collision {
     // 静的メンバの定義
