@@ -9,7 +9,15 @@
 
 namespace Collision{
     class Manager{
-        using Pair = std::pair<std::string, std::string>;
+    public:
+    	using Pair = std::pair<std::string, std::string>;
+
+        struct RayHitData{
+            Pair pair;
+            Vec3 hitPoint;
+        };
+
+    private:
         // 登録済みコライダー情報
         std::unordered_map<std::string, Collider*> colliders_;
         // 衝突確認済みペア
@@ -33,6 +41,7 @@ namespace Collision{
         std::queue<const Collider*> unregisterQueue_;
         std::mutex pendingMutex_;
 
+        std::vector<RayHitData> hitRays_;
     public:
         Manager();
         ~Manager();
@@ -63,10 +72,11 @@ namespace Collision{
          */
         void ProcessEvent();
 
+        RayHitData RayCast(const Ray* _ray);
+
+    private:
+
         void  ProcessPendingRegistrations();
-
-        private:
-
         void AddTask(std::function<void()> task);
         void WaitForTasks();
 
@@ -90,8 +100,6 @@ namespace Collision{
          * @return 衝突している場合はtrue
          */
         static bool Detect(const Collider* c1, const Collider* c2);
-
-        // Ray-specific collision detection
-        static bool DetectRay(const Ray& ray, const Collider* collider);
+        bool Detect(const Ray* ray, const Collider* collider);
     };
 }

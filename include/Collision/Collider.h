@@ -3,10 +3,11 @@
 #include <functional>
 #include <shared_mutex>
 #include <variant>
+#include <array>
 
-#include "sys/Mathematics.h"
+#include <src/sys/Mathematics.h>
 
-namespace Collision {
+namespace Collision{
 	class Manager;
 	class Collider;
 	class Sphere;
@@ -21,7 +22,7 @@ namespace Collision {
 	enum class Type{
 		Sphere,
 		AABB,
-        Ray,
+		Ray,
 
 		None
 	};
@@ -29,41 +30,54 @@ namespace Collision {
 	enum class EventType{
 		Trigger,
 		Stay,
-        Exit
+		Exit
 	};
 
 	class Event{
-        EventType type_;
-        const Collider* other_;
+		EventType type_;
+		const Collider* other_;
 
-	public:
+		public:
 		Event(EventType, const Collider*);
 		EventType GetType() const;
-        const Collider* GetOther() const;
+		const Collider* GetOther() const;
 	};
 
-    class Collider{
-    	using Size = std::variant<float, Vec3>;
+	struct MetaData{
+		std::string uuid;
+		Type type = Type::None;
+
+		uint32_t attribute = 0b0;
+		uint32_t ignore = 0b0;
+
+		void* owner = nullptr;
+	};
+
+	 struct Data{
+		 std::string uuid;
+        Type type = Type::None;
+        uint32_t attribute = 0b0;
+        uint32_t ignore = 0b0;
+        void* owner = nullptr;
+	};
+
+	class Collider{
+		using Size = std::variant<float, Vec3>;
 		using CBFunc = std::function<void(const Collider*)>;
 
 		std::atomic<bool> enable_ = false;
-    	std::atomic<bool> registered_ = false;
+		std::atomic<bool> registered_ = false;
 		std::shared_mutex mutex_;
 
-		std::string uuid_;
+		Vec3 translate_ {};
+		Size size_ {};
 
-		//Set
-		Type type_ = Type::None;
-		std::unique_ptr<CollideBody> body_ = nullptr;
+    Data data_ {};
 
-        Manager* manager_ = nullptr;
+		Manager* manager_ = nullptr;
 
 		std::array<CBFunc, 3> onCollisions_;
 
-		uint32_t attribute_ = 0b0;
-		uint32_t ignore_ = 0b0;
-
-        void* owner_ = nullptr;
 
 	public:
 		Collider();
@@ -76,28 +90,54 @@ namespace Collision {
 
 		bool IsRegistered() const;
 
-        Collider* SetType(const Type _type);
-        Collider* SetTranslate(const Vec3& _translate);
-    	Collider* SetSize(const Size _size);
-        Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
-        Collider* AddAttribute(uint32_t _attribute);
-        Collider* RemoveAttribute(uint32_t _attribute);
-        Collider* AddIgnore(uint32_t _ignore);
-        Collider* RemoveIgnore(uint32_t _ignore);
-        Collider* SetOwner(void* _owner);
+		Collider* SetType(const Type _type);
+		Collider* SetTranslate(const Vec3& _translate);
+		Collider* SetSize(const Size _size);
+		Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
+		Collider* AddAttribute(uint32_t _attribute);
+		Collider* RemoveAttribute(uint32_t _attribute);
+		Collider* AddIgnore(uint32_t _ignore);
+		Collider* RemoveIgnore(uint32_t _ignore);
+		Collider* SetOwner(void* _owner);
 
-        void OnCollision(Event _event) const;
+		void OnCollision(Event _event) const;
 
 		std::string GetUniqueId() const;
-        const CollideBody& GetBody() const;
-        Type GetType() const;
-        uint32_t GetAttribute() const;
-        uint32_t GetIgnore() const;
-        Vec3 GetTranslate() const;
-        Size GetSize() const;
-        void* GetOwner() const;
+		Type GetType() const;
+		uint32_t GetAttribute() const;
+		uint32_t GetIgnore() const;
+		Size GetSize() const;
+		Vec3 GetTranslate() const;
+		void* GetOwner() const;
 
-    private:
-		void SetBody();
-    };
+		bool operator==(const std::string& other) const {
+            return data_.uuid == other;
+        }
+	};
+
+    class Ray{
+        Vec3 origin_;
+        Vec3 direction_;
+        float length_;
+		Manager* manager_ = nullptr;
+        Data data_ {};
+    public:
+		Ray();
+        Ray(const Vec3& _origin, const Vec3& _direction, float _length);
+        const Vec3& GetOrigin() const;
+        const Vec3& GetDirection() const;
+        const float& GetLength() const;
+
+		std::string GetUniqueId() const;
+		Type GetType() const;
+		uint32_t GetAttribute() const;
+		uint32_t GetIgnore() const;
+		void* GetOwner() const;
+
+        Vec3 GetPoint(float t) const;
+
+		bool operator==(const std::string& other) const {
+            return data_.uuid == other;
+		}
+	};
 }
