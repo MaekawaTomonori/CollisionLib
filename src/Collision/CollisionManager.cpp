@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <queue>
 #include <functional>
+#include <ranges>
 
 #include <EventTimer/EventTimer.h>
 
@@ -200,7 +201,7 @@ namespace Collision{
                 }
 
                 threadResults[threadIndex] = std::move(localResults);
-                tasksCompleted++;
+                ++tasksCompleted;
             });
         }
 
@@ -313,15 +314,20 @@ namespace Collision{
         isProcessingCollisions_ = false;
     }
 
-    void Manager::RayCast(const Ray* _ray) {
-        if (!_ray) return;
+    Manager::RayHitData Manager::RayCast(const Ray* _ray) {
+        if (!_ray) return {};
         std::shared_lock lock(mutex_);
-        for (const auto& [key, value] : colliders_){
-            if (value->IsEnabled()){
-                if (Detect(, value)){
+        for (const auto& value : colliders_ | std::views::values){
+            if (!value->IsEnabled())continue;
+            if (!Detect(_ray, value))continue;
+
+            for (const auto& data: hitRays_){
+                if (data.pair.first == _ray->GetUniqueId() || data.pair.second == _ray->GetUniqueId()){
+                    return data;
                 }
             }
         }
+        return {};
     }
 
     bool Manager::Filter(const Pair& pair) const {
@@ -368,5 +374,50 @@ namespace Collision{
         }
 
         return false;
+    }
+
+    bool Manager::Detect(const Ray* ray, const Collider* collider) {
+        // レイの原点からコライダーの中心へのベクトル
+        float dx = collider->GetTranslate().x - ray->GetOrigin().x;
+        float dy = collider->GetTranslate().y - ray->GetOrigin().y;
+        float dz = collider->GetTranslate().z - ray->GetOrigin().z;
+
+        // レイの方向ベクトル上でのコライダー中心への射影
+        float projection_length = dx * ray->GetDirection().x + dy * ray->GetDirection().y + dz * ray->GetDirection().z;
+
+        // レイの後ろにコライダーがある場合は衝突なし
+        if (projection_length < 0){
+            return false;
+        }
+
+        // レイの最大長より遠い場合も衝突なし
+        if (projection_length > ray->GetLength()){
+            return false;
+        }
+
+        // 射影点からコライダー中心までの距離の2乗
+        float d2 = dx * dx + dy * dy + dz * dz - projection_length * projection_length;
+
+        // コライダーの半径の2乗
+        float r2 = std::get<float>(collider->GetSize()) * std::get<float>(collider->GetSize());
+
+        // 距離が半径より大きければ衝突なし
+        if (d2 > r2){
+            return false;
+        }
+
+        // ここまで来れば衝突している
+        // 衝突点までの距離を計算
+        float t = projection_length - std::sqrt(r2 - d2);
+
+        // レイの範囲内で最も近い衝突点を計算
+        t = std::min(t, 0.f);
+
+        // 衝突点の座標を計算
+        Vec3 hit_point = ray->GetPoint(t);
+
+        // 衝突データを作成
+        RayHitData hitData{{ray->GetUniqueId(), collider->GetUniqueId()}, hit_point};
+        hitRays_.push_back(hitData);
     }
 }

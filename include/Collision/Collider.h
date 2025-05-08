@@ -44,8 +44,12 @@ namespace Collision{
 		void* owner = nullptr;
 	};
 
-	class Body{
-		
+	 struct Data{
+		 std::string uuid;
+        Type type = Type::None;
+        uint32_t attribute = 0b0;
+        uint32_t ignore = 0b0;
+        void* owner = nullptr;
 	};
 
 	class Collider{
@@ -58,6 +62,8 @@ namespace Collision{
 
 		Vec3 translate_ {};
 		Size size_ {};
+
+        Data data_ {};
 
 		Manager* manager_ = nullptr;
 
@@ -94,15 +100,18 @@ namespace Collision{
 		Size GetSize() const;
 		Vec3 GetTranslate() const;
 		void* GetOwner() const;
+
+		bool operator==(const std::string& other) const {
+            return data_.uuid == other;
+        }
 	};
 
     class Ray{
         Vec3 origin_;
         Vec3 direction_;
         float length_;
-        Data data_;
 		Manager* manager_ = nullptr;
-
+        Data data_ {};
     public:
 		Ray();
         Ray(const Vec3& _origin, const Vec3& _direction, float _length);
@@ -115,5 +124,11 @@ namespace Collision{
 		uint32_t GetAttribute() const;
 		uint32_t GetIgnore() const;
 		void* GetOwner() const;
+
+        Vec3 GetPoint(float t) const;
+
+		bool operator==(const std::string& other) const {
+            return data_.uuid == other;
+		}
 	};
 }
