@@ -144,6 +144,53 @@ namespace Collision{
         length_ = length;
     }
 
+
+    Ray* Ray::SetOrigin(const Vec3& _origin) {
+        origin_ = _origin;
+        return this;
+	}
+
+    Ray* Ray::SetDirection(const Vec3& _direction) {
+        direction_ = _direction;
+        direction_.Normalize();
+        return this;
+    }
+
+    Ray* Ray::SetLength(const float& _length) {
+        length_ = _length;
+        return this;
+    }
+
+    Ray* Ray::SetType(const Type _type) {
+        data_.type = _type;
+        return this;
+    }
+
+    Ray* Ray::AddAttribute(uint32_t _attribute) {
+        data_.attribute |= _attribute;
+        return this;
+    }
+
+    Ray* Ray::RemoveAttribute(uint32_t _attribute) {
+        data_.attribute &= ~_attribute;
+        return this;
+    }
+
+    Ray* Ray::AddIgnore(uint32_t _ignore) {
+        data_.ignore |= _ignore;
+        return this;
+    }
+
+    Ray* Ray::RemoveIgnore(uint32_t _ignore) {
+        data_.ignore &= ~_ignore;
+        return this;
+    }
+
+    Ray* Ray::SetOwner(void* _owner) {
+        data_.owner = _owner;
+        return this;
+    }
+
     const Vec3& Ray::GetOrigin() const {
         return origin_;
     }
@@ -178,5 +225,9 @@ namespace Collision{
 
     Vec3 Ray::GetPoint(float t) const {
         return origin_ + direction_ * t;
+    }
+
+    bool Ray::operator==(const std::string& other) const {
+	    return data_.uuid == other;
     }
 }
