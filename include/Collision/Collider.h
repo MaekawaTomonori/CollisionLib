@@ -48,11 +48,11 @@ namespace Collision{
 	};
 
 	 struct Data{
-		 std::string uuid;
-        Type type = Type::None;
-        uint32_t attribute = 0b0;
-        uint32_t ignore = 0b0;
-        void* owner = nullptr;
+		std::string uuid;
+		Type type = Type::None;
+		uint32_t attribute = 0b0;
+		uint32_t ignore = 0b0;
+		void* owner = nullptr;
 	};
 
 	class Collider{
@@ -66,12 +66,11 @@ namespace Collision{
 		Vec3 translate_ {};
 		Size size_ {};
 
-    Data data_ {};
+		Data data_ {};
 
 		Manager* manager_ = nullptr;
 
 		std::array<CBFunc, 3> onCollisions_;
-
 
 	public:
 		Collider();
@@ -105,22 +104,37 @@ namespace Collision{
 		void* GetOwner() const;
 
 		bool operator==(const std::string& other) const {
-            return data_.uuid == other;
-        }
+			return data_.uuid == other;
+		}
 	};
 
-    class Ray{
-        Vec3 origin_;
-        Vec3 direction_;
-        float length_;
+	/// @brief
+	/// Use in ptr basically
+	/// 
+	class Ray{
+		Vec3 origin_;
+		Vec3 direction_;
+		float length_;
 		Manager* manager_ = nullptr;
-        Data data_ {};
-    public:
+		Data data_ {};
+	public:
 		Ray();
-        Ray(const Vec3& _origin, const Vec3& _direction, float _length);
-        const Vec3& GetOrigin() const;
-        const Vec3& GetDirection() const;
-        const float& GetLength() const;
+		Ray(const Vec3& _origin, const Vec3& _direction, float _length);
+
+		Ray* SetOrigin(const Vec3& _origin);
+		Ray* SetDirection(const Vec3& _direction);
+		Ray* SetLength(const float& _length);
+
+		Ray* SetType(const Type _type);
+		Ray* AddAttribute(uint32_t _attribute);
+		Ray* RemoveAttribute(uint32_t _attribute);
+		Ray* AddIgnore(uint32_t _ignore);
+		Ray* RemoveIgnore(uint32_t _ignore);
+		Ray* SetOwner(void* _owner);
+
+		const Vec3& GetOrigin() const;
+		const Vec3& GetDirection() const;
+		const float& GetLength() const;
 
 		std::string GetUniqueId() const;
 		Type GetType() const;
@@ -128,10 +142,8 @@ namespace Collision{
 		uint32_t GetIgnore() const;
 		void* GetOwner() const;
 
-        Vec3 GetPoint(float t) const;
+		Vec3 GetPoint(float t) const;
 
-		bool operator==(const std::string& other) const {
-            return data_.uuid == other;
-		}
+		bool operator==(const std::string& other) const;
 	};
 }
