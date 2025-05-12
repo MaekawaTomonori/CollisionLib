@@ -397,7 +397,13 @@ namespace Collision{
         float d2 = dx * dx + dy * dy + dz * dz - projection_length * projection_length;
 
         // コライダーの半径の2乗
-        float r2 = std::get<float>(collider->GetSize()) * std::get<float>(collider->GetSize());
+        float r2;
+        if (std::holds_alternative<float>(collider->GetSize())){
+            r2 = std::get<float>(collider->GetSize()) * std::get<float>(collider->GetSize());
+        } else{
+            r2 = std::get<Vec3>(collider->GetSize()).x;
+            r2 *= r2;
+        }
 
         // 距離が半径より大きければ衝突なし
         if (d2 > r2){
