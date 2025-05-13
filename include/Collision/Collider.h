@@ -95,6 +95,8 @@ namespace Collision{
 
 		void OnCollision(Event _event) const;
 
+		const Data& GetData() const;
+
 		std::string GetUniqueId() const;
 		Type GetType() const;
 		uint32_t GetAttribute() const;
@@ -131,6 +133,8 @@ namespace Collision{
 		Ray* AddIgnore(uint32_t _ignore);
 		Ray* RemoveIgnore(uint32_t _ignore);
 		Ray* SetOwner(void* _owner);
+
+        const Data& GetData() const;
 
 		const Vec3& GetOrigin() const;
 		const Vec3& GetDirection() const;

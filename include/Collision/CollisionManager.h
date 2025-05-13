@@ -94,6 +94,8 @@ namespace Collision{
          */
         bool Filter(const Pair& pair) const;
 
+	    static bool Filter(const Data& data, const Data& other);
+
         /**
          * 2つのコライダー間の衝突を検出します。
          * @param c1 1つ目のコライダー

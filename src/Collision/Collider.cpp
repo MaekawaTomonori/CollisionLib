@@ -104,6 +104,10 @@ namespace Collision{
         }
     }
 
+	const Data& Collider::GetData() const {
+        return data_;
+	}
+
 	std::string Collider::GetUniqueId() const {
         return data_.uuid;
 	}
@@ -189,6 +193,10 @@ namespace Collision{
     Ray* Ray::SetOwner(void* _owner) {
         data_.owner = _owner;
         return this;
+    }
+
+    const Data& Ray::GetData() const {
+        return data_;
     }
 
     const Vec3& Ray::GetOrigin() const {

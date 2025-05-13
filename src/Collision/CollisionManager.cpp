@@ -322,6 +322,8 @@ namespace Collision{
 
         for (const auto& value : colliders_ | std::views::values){
             if (!value->IsEnabled())continue;
+            if (!Filter(_ray->GetData(), value->GetData()))continue;
+
             Detect(_ray, value);
         }
 
@@ -358,6 +360,14 @@ namespace Collision{
         if (c1->GetAttribute() & c2->GetIgnore() || c1->GetIgnore() & c2->GetAttribute()) return false;
         return true;
     }
+
+    bool Manager::Filter(const Data& data, const Data& other) {
+        if (data.uuid == other.uuid)return false;
+        if (data.type == Type::None || other.type == Type::None)return false;
+        if (data.attribute & other.ignore || data.ignore & other.attribute) return false;
+        return true;
+    }
+
 
     bool Manager::Detect(const Collider* c1, const Collider* c2) {
         bool sp1 = std::holds_alternative<float>(c1->GetSize());
