@@ -101,6 +101,6 @@ namespace Collision{
          * @return 衝突している場合はtrue
          */
         static bool Detect(const Collider* c1, const Collider* c2);
-        bool Detect(const Ray* ray, const Collider* collider);
+	    void Detect(const Ray* ray, const Collider* collider);
     };
 }

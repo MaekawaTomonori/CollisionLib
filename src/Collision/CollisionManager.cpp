@@ -315,17 +315,27 @@ namespace Collision{
     Manager::RayHitData Manager::RayCast(const Ray* _ray) {
         if (!_ray) return {};
         std::shared_lock lock(mutex_);
+
+        RayHitData closestData {};
+        float closestDistance = std::numeric_limits<float>::max();
+        hitRays_.clear();
+
         for (const auto& value : colliders_ | std::views::values){
             if (!value->IsEnabled())continue;
-            if (!Detect(_ray, value))continue;
-
-            for (const auto& data: hitRays_){
-                if (data.pair.first == _ray->GetUniqueId() || data.pair.second == _ray->GetUniqueId()){
-                    return data;
-                }
-            }
+            Detect(_ray, value);
         }
-        return {};
+
+        if (hitRays_.empty())return {};
+
+    	for (const auto& data : hitRays_){
+            if (data.pair.first == _ray->GetUniqueId() || data.pair.second == _ray->GetUniqueId())continue;
+
+            if (float distance = (_ray->GetOrigin() - data.hitPoint).Length(); distance < closestDistance){
+                closestDistance = distance;
+                closestData = data;
+            }
+    	}
+        return closestData;
     }
 
     Collider* Manager::Get(const std::string& uuid) {
@@ -335,8 +345,8 @@ namespace Collision{
     }
 
     bool Manager::Filter(const Pair& pair) const {
-        auto itr = colliders_.find(pair.first);
-        auto otr = colliders_.find(pair.second);
+        const auto itr = colliders_.find(pair.first);
+        const auto otr = colliders_.find(pair.second);
 
         if (itr == colliders_.end() || otr == colliders_.end()) return false;
 
@@ -380,7 +390,7 @@ namespace Collision{
         return false;
     }
 
-    bool Manager::Detect(const Ray* ray, const Collider* collider) {
+    void Manager::Detect(const Ray* ray, const Collider* collider) {
         // レイの原点からコライダーの中心へのベクトル
         float dx = collider->GetTranslate().x - ray->GetOrigin().x;
         float dy = collider->GetTranslate().y - ray->GetOrigin().y;
@@ -391,12 +401,12 @@ namespace Collision{
 
         // レイの後ろにコライダーがある場合は衝突なし
         if (projection_length < 0){
-            return false;
+            return;
         }
 
         // レイの最大長より遠い場合も衝突なし
         if (projection_length > ray->GetLength()){
-            return false;
+            return;
         }
 
         // 射影点からコライダー中心までの距離の2乗
@@ -413,7 +423,7 @@ namespace Collision{
 
         // 距離が半径より大きければ衝突なし
         if (d2 > r2){
-            return false;
+            return;
         }
 
         // ここまで来れば衝突している
@@ -429,6 +439,5 @@ namespace Collision{
         // 衝突データを作成
         RayHitData hitData{{ray->GetUniqueId(), collider->GetUniqueId()}, hit_point};
         hitRays_.push_back(hitData);
-        return true;
     }
 }
