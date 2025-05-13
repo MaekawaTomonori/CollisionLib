@@ -10,14 +10,13 @@
 namespace Collision{
     class Manager{
     public:
-    	using Pair = std::pair<std::string, std::string>;
-
         struct RayHitData{
-            Pair pair;
+	        std::string uuid;
             Vec3 hitPoint;
         };
 
     private:
+    	using Pair = std::pair<std::string, std::string>;
         // 登録済みコライダー情報
         std::unordered_map<std::string, Collider*> colliders_;
         // 衝突確認済みペア

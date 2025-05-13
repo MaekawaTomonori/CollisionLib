@@ -330,8 +330,6 @@ namespace Collision{
         if (hitRays_.empty())return {};
 
     	for (const auto& data : hitRays_){
-            if (data.pair.first == _ray->GetUniqueId() || data.pair.second == _ray->GetUniqueId())continue;
-
             if (float distance = (_ray->GetOrigin() - data.hitPoint).Length(); distance < closestDistance){
                 closestDistance = distance;
                 closestData = data;
@@ -447,7 +445,7 @@ namespace Collision{
         Vec3 hit_point = ray->GetPoint(t);
 
         // 衝突データを作成
-        RayHitData hitData{{ray->GetUniqueId(), collider->GetUniqueId()}, hit_point};
+        RayHitData hitData{ collider->GetUniqueId(), hit_point};
         hitRays_.push_back(hitData);
     }
 }
