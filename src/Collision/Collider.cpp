@@ -195,6 +195,14 @@ namespace Collision{
         return this;
     }
 
+    Ray* Ray::SetDestination(const Vec3& _destination) {
+        Vec3 destinationVec = _destination - origin_;
+        destinationVec.Normalize();
+        direction_ = destinationVec;
+        return this;
+    }
+
+
     const Data& Ray::GetData() const {
         return data_;
     }

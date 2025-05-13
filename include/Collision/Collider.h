@@ -134,6 +134,8 @@ namespace Collision{
 		Ray* RemoveIgnore(uint32_t _ignore);
 		Ray* SetOwner(void* _owner);
 
+        Ray* SetDestination(const Vec3& _destination);
+
         const Data& GetData() const;
 
 		const Vec3& GetOrigin() const;
