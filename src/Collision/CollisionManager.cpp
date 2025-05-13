@@ -439,13 +439,21 @@ namespace Collision{
         float t = projection_length - std::sqrt(r2 - d2);
 
         // レイの範囲内で最も近い衝突点を計算
-        t = std::min(t, 0.f);
+        if (t < 0){
+	        t = projection_length - sqrtf(r2 - d2);
+
+            if (t < 0){
+                t = 0.f;
+            }
+        }
+
+        t = std::min(t, ray->GetLength());
 
         // 衝突点の座標を計算
         Vec3 hit_point = ray->GetPoint(t);
 
         // 衝突データを作成
-        RayHitData hitData{ collider->GetUniqueId(), hit_point};
+        RayHitData hitData{ .uuid= collider->GetUniqueId(), .hitPoint= hit_point};
         hitRays_.push_back(hitData);
     }
 }
