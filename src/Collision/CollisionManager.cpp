@@ -328,6 +328,12 @@ namespace Collision{
         return {};
     }
 
+    Collider* Manager::Get(const std::string& uuid) {
+        if (!colliders_.contains(uuid))return nullptr;
+
+        return colliders_[uuid];
+    }
+
     bool Manager::Filter(const Pair& pair) const {
         auto itr = colliders_.find(pair.first);
         auto otr = colliders_.find(pair.second);

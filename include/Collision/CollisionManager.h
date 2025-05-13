@@ -74,6 +74,7 @@ namespace Collision{
 
         RayHitData RayCast(const Ray* _ray);
 
+        Collider* Get(const std::string& uuid);
     private:
 
         void  ProcessPendingRegistrations();
