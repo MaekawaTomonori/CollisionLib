@@ -376,15 +376,19 @@ namespace Collision{
         } else if ((sp1 && !sp2) || (!sp1 && sp2)){
             // AABB vs Sphere
             const auto& aabb = sp1 ? c2 : c1;
-            const auto& sphere = sp1 ? c1 : c2;
             const auto& aabbSize = std::get<Vec3>(aabb->GetSize());
             const auto& aabbTranslate = aabb->GetTranslate();
+            const auto& sphere = sp1 ? c1 : c2;
             const auto& sphereSize = std::get<float>(sphere->GetSize());
             const auto& sphereTranslate = sphere->GetTranslate();
 
-            return (abs(aabbTranslate.x - sphereTranslate.x) < aabbSize.x + sphereSize) &&
-                (abs(aabbTranslate.y - sphereTranslate.y) < aabbSize.y + sphereSize) &&
-                (abs(aabbTranslate.z - sphereTranslate.z) < aabbSize.z + sphereSize);
+        	Vec3 closestPoint = {
+                std::clamp(sphereTranslate.x, aabbTranslate.x - aabbSize.x / 2.f, aabbTranslate.x + aabbSize.x / 2.f),
+                std::clamp(sphereTranslate.y, aabbTranslate.y - aabbSize.y / 2.f, aabbTranslate.y + aabbSize.y / 2.f),
+                std::clamp(sphereTranslate.z, aabbTranslate.z - aabbSize.z / 2.f, aabbTranslate.z + aabbSize.z / 2.f)
+            };
+
+            return (closestPoint - sphereTranslate).Length() <= sphereSize;
 
         } else if (!sp1 && !sp2){
             // AABB vs AABB
