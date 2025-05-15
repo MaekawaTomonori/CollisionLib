@@ -7,8 +7,6 @@
 
 #include <EventTimer/EventTimer.h>
 
-#include "AABB.h"
-
 namespace Collision{
     Manager::Manager() {
         InitThreadPool();
