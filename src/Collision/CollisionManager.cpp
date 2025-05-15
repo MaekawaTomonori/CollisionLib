@@ -419,8 +419,8 @@ namespace Collision{
         	nz.Dot(ray->GetDirection())
         };
 
-        Vec3 min = (collider->GetTranslate() - std::get<Vec3>(collider->GetSize()) - ray->GetOrigin()) / dot;
-        Vec3 max = (collider->GetTranslate() + std::get<Vec3>(collider->GetSize()) - ray->GetOrigin()) / dot;
+        Vec3 min = (collider->GetTranslate() - std::get<Vec3>(collider->GetSize())/2.f - ray->GetOrigin()) / dot;
+        Vec3 max = (collider->GetTranslate() + std::get<Vec3>(collider->GetSize())/2.f - ray->GetOrigin()) / dot;
 
         if (min.x < -INFINITY or max.x > INFINITY or min.y < -INFINITY or max.y > INFINITY or min.z < -INFINITY or max.z > INFINITY)return;
         if (isnan(min.x) or isnan(min.y) or isnan(min.z) or isnan(max.x) or isnan(max.y) or isnan(max.z))return;
