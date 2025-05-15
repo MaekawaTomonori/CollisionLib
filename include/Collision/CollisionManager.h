@@ -103,5 +103,6 @@ namespace Collision{
          */
         static bool Detect(const Collider* c1, const Collider* c2);
 	    void Detect(const Ray* ray, const Collider* collider);
+        void RayAABB(const Ray* ray, const Collider* collider);
     };
 }

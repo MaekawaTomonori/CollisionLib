@@ -7,6 +7,8 @@
 
 #include <EventTimer/EventTimer.h>
 
+#include "AABB.h"
+
 namespace Collision{
     Manager::Manager() {
         InitThreadPool();
@@ -399,12 +401,18 @@ namespace Collision{
     }
 
     void Manager::Detect(const Ray* ray, const Collider* collider) {
-        // レイの原点からコライダーの中心へのベクトル
+        
+    	if (collider->GetType() == Type::AABB){
+            RayAABB(ray, collider);
+            return;
+        }
+
+    	// レイの原点からコライダーの中心へのベクトル
         float dx = collider->GetTranslate().x - ray->GetOrigin().x;
         float dy = collider->GetTranslate().y - ray->GetOrigin().y;
         float dz = collider->GetTranslate().z - ray->GetOrigin().z;
 
-        // レイの方向ベクトル上でのコライダー中心への射影
+    	// レイの方向ベクトル上でのコライダー中心への射影
         float projection_length = dx * ray->GetDirection().x + dy * ray->GetDirection().y + dz * ray->GetDirection().z;
 
         // レイの後ろにコライダーがある場合は衝突なし
@@ -455,5 +463,55 @@ namespace Collision{
         // 衝突データを作成
         RayHitData hitData{ .uuid= collider->GetUniqueId(), .hitPoint= hit_point};
         hitRays_.push_back(hitData);
+    }
+
+    void Manager::RayAABB(const Ray* ray, const Collider* collider) {
+        Vec3 nx = {1, 0, 0},
+            ny = {0, 1, 0},
+            nz = {0, 0, 1};
+
+        Vec3 dot = {
+        	nx.Dot(ray->GetDirection()),
+        	ny.Dot(ray->GetDirection()),
+        	nz.Dot(ray->GetDirection())
+        };
+
+        Vec3 min = (collider->GetTranslate() - std::get<Vec3>(collider->GetSize()) - ray->GetOrigin()) / dot;
+        Vec3 max = (collider->GetTranslate() + std::get<Vec3>(collider->GetSize()) - ray->GetOrigin()) / dot;
+
+        if (min.x < -INFINITY or max.x > INFINITY or min.y < -INFINITY or max.y > INFINITY or min.z < -INFINITY or max.z > INFINITY)return;
+        if (isnan(min.x) or isnan(min.y) or isnan(min.z) or isnan(max.x) or isnan(max.y) or isnan(max.z))return;
+
+        Vec3 n = {
+            std::min(min.x, max.x),
+            std::min(min.y, max.y),
+            std::min(min.z, max.z)
+        };
+
+        Vec3 f = {
+            std::max(min.x, max.x),
+            std::max(min.y, max.y),
+            std::max(min.z, max.z)
+        };
+
+        float tmin = std::max(std::max(n.x,n.y), n.z);
+        float tmax = std::min(std::min(f.x, f.y), f.z);
+
+        bool detect = false;
+
+        if (tmin <= tmax){
+	        if (0 <= tmax || tmax <= 1){
+                detect = true;
+	        }
+        	if ((1<=f.x && n.x <= 0) || (1 <= f.y && n.y <= 0) || (1 <= f.z && n.z <= 0)){
+                detect = true;
+	        }
+        }
+
+        if (detect){
+        	// 衝突データを作成
+            RayHitData hitData {.uuid = collider->GetUniqueId(), .hitPoint = ray->GetPoint(tmin)};
+            hitRays_.push_back(hitData);
+        }
     }
 }

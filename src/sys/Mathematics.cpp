@@ -18,23 +18,27 @@ namespace Collision {
     }
 
     Vec3 Vec3::operator+(const Vec3& other) const {
-	    return Vec3(x + other.x, y + other.y, z + other.z);
+	    return {x + other.x, y + other.y, z + other.z};
     }
 
     Vec3 Vec3::operator-(const Vec3& other) const {
-	    return Vec3(x - other.x, y - other.y, z - other.z);
+	    return {x - other.x, y - other.y, z - other.z};
     }
 
     Vec3 Vec3::operator-(const float other) const {
-	    return Vec3(x - other, y - other, z - other);
+	    return {x - other, y - other, z - other};
     }
 
     Vec3 Vec3::operator*(float scalar) const {
-	    return Vec3(x * scalar, y * scalar, z * scalar);
+	    return {x * scalar, y * scalar, z * scalar};
     }
 
     Vec3 Vec3::operator/(float scalar) const {
-	    return Vec3(x / scalar, y / scalar, z / scalar);
+	    return {x / scalar, y / scalar, z / scalar};
+    }
+
+    Vec3 Vec3::operator/(const Vec3& other) const {
+        return {x / other.x, y / other.y, z / other.z};
     }
 
     Vec3& Vec3::operator+=(const Vec3& other) {
@@ -94,6 +98,10 @@ namespace Collision {
 	    if (len >= 0.0001f){
 		    *this /= len;
 	    }
+    }
+
+    float Vec3::Dot(const Vec3& other) const {
+        return x * other.x + y * other.y + z * other.z;
     }
 
     float Vec3::Dot(const Vec3& a, const Vec3& b) {
