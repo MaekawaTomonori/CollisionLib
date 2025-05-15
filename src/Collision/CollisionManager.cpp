@@ -441,19 +441,22 @@ namespace Collision{
         float tmax = std::min(std::min(f.x, f.y), f.z);
 
         bool detect = false;
+        float t = tmin;
 
         if (tmin <= tmax){
 	        if (0 <= tmax || tmax <= 1){
+                t = tmin;
                 detect = true;
 	        }
         	if ((1<=f.x && n.x <= 0) || (1 <= f.y && n.y <= 0) || (1 <= f.z && n.z <= 0)){
+                t = tmax;
                 detect = true;
 	        }
         }
 
         if (detect){
         	// 衝突データを作成
-            RayHitData hitData {.uuid = collider->GetUniqueId(), .hitPoint = ray->GetPoint(tmin)};
+            RayHitData hitData {.uuid = collider->GetUniqueId(), .hitPoint = ray->GetPoint(t)};
             hitRays_.push_back(hitData);
         }
     }
