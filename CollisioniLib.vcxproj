@@ -20,7 +20,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Collision\Sphere.h" />
-    <ClInclude Include="src\Collision\AABB.h" />
     <ClInclude Include="include\Collision\Collider.h" />
     <ClInclude Include="include\Collision\CollisionManager.h" />
     <ClInclude Include="src\Collision\Ray.h" />
