@@ -413,54 +413,36 @@ namespace Collision{
     }
 
     void Manager::RayAABB(const Ray* ray, const Collider* collider) {
-        Vec3 nx = {1, 0, 0},
-            ny = {0, 1, 0},
-            nz = {0, 0, 1};
+        const Vec3& dir = ray->GetDirection();
+        const Vec3& origin = ray->GetOrigin();
+        const Vec3& center = collider->GetTranslate();
+        const Vec3& halfSize = std::get<Vec3>(collider->GetSize()) * 0.5f;
 
-        Vec3 dot = {
-        	nx.Dot(ray->GetDirection()),
-        	ny.Dot(ray->GetDirection()),
-        	nz.Dot(ray->GetDirection())
-        };
+        Vec3 t1 = (center - halfSize - origin) / dir;
+        Vec3 t2 = (center + halfSize - origin) / dir;
 
-        Vec3 min = (collider->GetTranslate() - std::get<Vec3>(collider->GetSize())/2.f - ray->GetOrigin()) / dot;
-        Vec3 max = (collider->GetTranslate() + std::get<Vec3>(collider->GetSize())/2.f - ray->GetOrigin()) / dot;
+        Vec3 tminVec = {};
+        tminVec.x = std::min(t1.x, t2.x);
+        tminVec.y = std::min(t1.y, t2.y);
+        tminVec.z = std::min(t1.z, t2.z);
 
-        if (min.x < -INFINITY or max.x > INFINITY or min.y < -INFINITY or max.y > INFINITY or min.z < -INFINITY or max.z > INFINITY)return;
-        if (isnan(min.x) or isnan(min.y) or isnan(min.z) or isnan(max.x) or isnan(max.y) or isnan(max.z))return;
 
-        Vec3 n = {
-            std::min(min.x, max.x),
-            std::min(min.y, max.y),
-            std::min(min.z, max.z)
-        };
+        Vec3 tmaxVec = {};
+        tmaxVec.x = std::max(t1.x, t2.x);
+        tmaxVec.y = std::max(t1.y, t2.y);
+        tmaxVec.z = std::max(t1.z, t2.z);
 
-        Vec3 f = {
-            std::max(min.x, max.x),
-            std::max(min.y, max.y),
-            std::max(min.z, max.z)
-        };
+        float tmin = std::max({tminVec.x, tminVec.y, tminVec.z});
+        float tmax = std::min({tmaxVec.x, tmaxVec.y, tmaxVec.z});
 
-        float tmin = std::max(std::max(n.x,n.y), n.z);
-        float tmax = std::min(std::min(f.x, f.y), f.z);
+        if (tmin > tmax || tmax < 0.0f) return;
 
-        bool detect = false;
-        float t = tmin;
-
-        if (tmin <= tmax){
-	        if (0 <= tmax || tmax <= 1){
-                t = tmin;
-                detect = true;
-	        }
-        	if ((1<=f.x && n.x <= 0) || (1 <= f.y && n.y <= 0) || (1 <= f.z && n.z <= 0)){
-                t = tmax;
-                detect = true;
-	        }
-        }
-
-        if (detect){
-        	// 衝突データを作成
-            RayHitData hitData {.uuid = collider->GetUniqueId(), .hitPoint = ray->GetPoint(t)};
+        float t = (tmin >= 0.0f) ? tmin : tmax;
+        if (t >= 0.0f) {
+            RayHitData hitData {
+                .uuid = collider->GetUniqueId(),
+                .hitPoint = ray->GetPoint(t)
+            };
             hitRays_.push_back(hitData);
         }
     }
