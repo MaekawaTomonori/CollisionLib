@@ -1,4 +1,4 @@
-﻿#include "Collision/CollisionManager.h"
+#include "Collision/CollisionManager.h"
 #include <algorithm>
 #include <condition_variable>
 #include <queue>
@@ -373,33 +373,31 @@ namespace Collision{
         if (sp1 && sp2){
             // Sphere vs Sphere
             return (c1->GetTranslate() - c2->GetTranslate()).Length() <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
-        } else if ((sp1 && !sp2) || (!sp1 && sp2)){
-            // AABB vs Sphere
-            const auto& aabb = sp1 ? c2 : c1;
-            const auto& aabbSize = std::get<Vec3>(aabb->GetSize());
-            const auto& aabbTranslate = aabb->GetTranslate();
-            const auto& sphere = sp1 ? c1 : c2;
-            const auto& sphereSize = std::get<float>(sphere->GetSize());
-            const auto& sphereTranslate = sphere->GetTranslate();
-
-        	Vec3 closestPoint = {
-                std::clamp(sphereTranslate.x, aabbTranslate.x - aabbSize.x / 2.f, aabbTranslate.x + aabbSize.x / 2.f),
-                std::clamp(sphereTranslate.y, aabbTranslate.y - aabbSize.y / 2.f, aabbTranslate.y + aabbSize.y / 2.f),
-                std::clamp(sphereTranslate.z, aabbTranslate.z - aabbSize.z / 2.f, aabbTranslate.z + aabbSize.z / 2.f)
-            };
-
-            return (closestPoint - sphereTranslate).Length() <= sphereSize;
-
-        } else if (!sp1 && !sp2){
+        } 
+        if (!sp1 && !sp2){
             // AABB vs AABB
-            auto size1 = std::get<Vec3>(c1->GetSize());
-            auto size2 = std::get<Vec3>(c2->GetSize());
-            return (std::abs(c1->GetTranslate().x - c2->GetTranslate().x) < size1.x + size2.x) &&
-                (std::abs(c1->GetTranslate().y - c2->GetTranslate().y) < size1.y + size2.y) &&
-                (std::abs(c1->GetTranslate().z - c2->GetTranslate().z) < size1.z + size2.z);
-        }
+            const auto& min1 = c1->GetTranslate() - std::get<Vec3>(c1->GetSize()) * 0.5f;
+            const auto& max1 = c1->GetTranslate() + std::get<Vec3>(c1->GetSize()) * 0.5f;
+            const auto& min2 = c2->GetTranslate() - std::get<Vec3>(c2->GetSize()) * 0.5f;
+            const auto& max2 = c2->GetTranslate() + std::get<Vec3>(c2->GetSize()) * 0.5f;
 
-        return false;
+            return (min1.x <= max2.x && max1.x >= min2.x) &&
+                (min1.y <= max2.y && max1.y >= min2.y) &&
+                (min1.z <= max2.z && max1.z >= min2.z);
+        }
+        // AABB vs Sphere
+        const auto& aabb = sp1 ? c2 : c1;
+        const auto& sphere = sp1 ? c1 : c2;
+        const auto& aabbSize = std::get<Vec3>(aabb->GetSize());
+        const auto& aabbTranslate = aabb->GetTranslate();
+        const auto& aabbMin = aabbTranslate - (aabbSize/2.f);
+        const auto& aabbMax = aabbTranslate + (aabbSize/2.f);
+        const auto& sphereSize = std::get<float>(sphere->GetSize());
+        const auto& sphereTranslate = sphere->GetTranslate();
+
+        return (sphereTranslate.x >= aabbMin.x - sphereSize && sphereTranslate.x <= aabbMax.x + sphereSize) &&
+            (sphereTranslate.y >= aabbMin.y - sphereSize && sphereTranslate.y <= aabbMax.y + sphereSize) &&
+            (sphereTranslate.z >= aabbMin.z - sphereSize && sphereTranslate.z <= aabbMax.z + sphereSize);
     }
 
     void Manager::Detect(const Ray* ray, const Collider* collider) {
@@ -421,16 +419,17 @@ namespace Collision{
         Vec3 t1 = (center - halfSize - origin) / dir;
         Vec3 t2 = (center + halfSize - origin) / dir;
 
-        Vec3 tminVec = {};
-        tminVec.x = std::min(t1.x, t2.x);
-        tminVec.y = std::min(t1.y, t2.y);
-        tminVec.z = std::min(t1.z, t2.z);
+        Vec3 tminVec = {
+			std::min(t1.x, t2.x),
+			std::min(t1.y, t2.y),
+        	std::min(t1.z, t2.z),
+		};
 
-
-        Vec3 tmaxVec = {};
-        tmaxVec.x = std::max(t1.x, t2.x);
-        tmaxVec.y = std::max(t1.y, t2.y);
-        tmaxVec.z = std::max(t1.z, t2.z);
+        Vec3 tmaxVec = {
+            std::max(t1.x, t2.x),
+            std::max(t1.y, t2.y),
+            std::max(t1.z, t2.z),
+        };
 
         float tmin = std::max({tminVec.x, tminVec.y, tminVec.z});
         float tmax = std::min({tmaxVec.x, tmaxVec.y, tmaxVec.z});
