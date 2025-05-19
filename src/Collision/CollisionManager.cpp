@@ -1,4 +1,4 @@
-﻿#include "Collision/CollisionManager.h"
+#include "Collision/CollisionManager.h"
 #include <algorithm>
 #include <condition_variable>
 #include <queue>
@@ -373,8 +373,8 @@ namespace Collision{
         if (sp1 && sp2){
             // Sphere vs Sphere
             return (c1->GetTranslate() - c2->GetTranslate()).Length() <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
-        }
-    	if (!sp1 && !sp2){
+        } 
+        if (!sp1 && !sp2){
             // AABB vs AABB
             const auto& min1 = c1->GetTranslate() - std::get<Vec3>(c1->GetSize()) * 0.5f;
             const auto& max1 = c1->GetTranslate() + std::get<Vec3>(c1->GetSize()) * 0.5f;
@@ -385,8 +385,7 @@ namespace Collision{
                 (min1.y <= max2.y && max1.y >= min2.y) &&
                 (min1.z <= max2.z && max1.z >= min2.z);
         }
-
-		// AABB vs Sphere
+        // AABB vs Sphere
         const auto& aabb = sp1 ? c2 : c1;
         const auto& sphere = sp1 ? c1 : c2;
         const auto& aabbSize = std::get<Vec3>(aabb->GetSize());
