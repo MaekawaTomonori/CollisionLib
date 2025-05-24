@@ -171,8 +171,8 @@ namespace Collision{
         if (count == 0) return;
 
         std::vector<std::vector<Pair>> threadResults(maxThreadCount_);
-        std::atomic<int> tasksCompleted = 0;
-        int totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
+        std::atomic<uint32_t> tasksCompleted = 0;
+        uint32_t totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
         const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
 
         EventTimer::GetInstance()->BeginEvent("Thread");
@@ -388,11 +388,11 @@ namespace Collision{
         // AABB vs Sphere
         const auto& aabb = sp1 ? c2 : c1;
         const auto& sphere = sp1 ? c1 : c2;
-        const auto& aabbSize = std::get<Vec3>(aabb->GetSize());
+        const auto& aabbSize = std::get<Vec3>(static_cast<const Collider*>(aabb)->GetSize());
         const auto& aabbTranslate = aabb->GetTranslate();
         const auto& aabbMin = aabbTranslate - (aabbSize/2.f);
         const auto& aabbMax = aabbTranslate + (aabbSize/2.f);
-        const auto& sphereSize = std::get<float>(sphere->GetSize());
+        const auto& sphereSize = std::get<float>(static_cast<const Collider*>(sphere)->GetSize());
         const auto& sphereTranslate = sphere->GetTranslate();
 
         return (sphereTranslate.x >= aabbMin.x - sphereSize && sphereTranslate.x <= aabbMax.x + sphereSize) &&
