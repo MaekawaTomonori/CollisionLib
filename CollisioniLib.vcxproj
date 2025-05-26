@@ -87,12 +87,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\output\</OutDir>
-    <IntDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\bin\</IntDir>
+    <IntDir>$(ProjectDir)\out\$(Platform)\$(ProjectName)\$(Configuration)\bin\</IntDir>
     <PublicIncludeDirectories>$(ProjectDir)include;$(PublicIncludeDirectories)</PublicIncludeDirectories>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\output\</OutDir>
-    <IntDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\bin\</IntDir>
+    <IntDir>$(ProjectDir)\out\$(Platform)\$(ProjectName)\$(Configuration)\bin\</IntDir>
     <PublicIncludeDirectories>$(ProjectDir)include;$(PublicIncludeDirectories)</PublicIncludeDirectories>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
