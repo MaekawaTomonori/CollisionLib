@@ -37,16 +37,6 @@ namespace Collision{
 		const Collider* GetOther() const;
 	};
 
-	struct MetaData{
-		std::string uuid;
-		Type type = Type::None;
-
-		uint32_t attribute = 0b0;
-		uint32_t ignore = 0b0;
-
-		void* owner = nullptr;
-	};
-
 	 struct Data{
 		std::string uuid;
 		Type type = Type::None;

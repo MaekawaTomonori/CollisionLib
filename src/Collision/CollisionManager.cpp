@@ -355,7 +355,7 @@ namespace Collision{
         if (c1 == c2) return false;
         if (!c1->IsEnabled() || !c2->IsEnabled()) return false;
         if (c1->GetType() == Type::None || c2->GetType() == Type::None) return false;
-        if (c1->GetAttribute() & c2->GetIgnore() || c1->GetIgnore() & c2->GetAttribute()) return false;
+    	if (c1->GetAttribute() & c2->GetIgnore() || c1->GetIgnore() & c2->GetAttribute()) return false;
         return true;
     }
 
@@ -368,11 +368,14 @@ namespace Collision{
 
 
     bool Manager::Detect(const Collider* c1, const Collider* c2) {
-        bool sp1 = std::holds_alternative<float>(c1->GetSize());
+        float distance = (c1->GetTranslate() - c2->GetTranslate()).Length();
+        if (100.f < distance)return false;
+
+    	bool sp1 = std::holds_alternative<float>(c1->GetSize());
         bool sp2 = std::holds_alternative<float>(c2->GetSize());
         if (sp1 && sp2){
             // Sphere vs Sphere
-            return (c1->GetTranslate() - c2->GetTranslate()).Length() <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
+            return distance <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
         } 
         if (!sp1 && !sp2){
             // AABB vs AABB
