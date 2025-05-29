@@ -440,7 +440,7 @@ namespace Collision{
         if (tmin > tmax || tmax < 0.0f) return;
 
         float t = (tmin >= 0.0f) ? tmin : tmax;
-        if (t >= 0.0f) {
+        if (0.0f <= t && t <= ray->GetLength()) {
             RayHitData hitData {
                 .uuid = collider->GetUniqueId(),
                 .hitPoint = ray->GetPoint(t)
