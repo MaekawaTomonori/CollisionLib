@@ -318,6 +318,7 @@ namespace Collision{
 
         RayHitData closestData {};
         float closestDistance = std::numeric_limits<float>::max();
+        hitRaysOrderedByDistance_.clear();
         hitRays_.clear();
 
         for (const auto& value : colliders_ | std::views::values){
@@ -329,13 +330,27 @@ namespace Collision{
 
         if (hitRays_.empty())return {.uuid= "", .hitPoint= _ray->GetOrigin() + _ray->GetDirection() * _ray->GetLength()};
 
-    	for (const auto& data : hitRays_){
-            if (float distance = (_ray->GetOrigin() - data.hitPoint).Length(); distance < closestDistance){
+    	for (auto& data : hitRays_){
+            float distance = (_ray->GetOrigin() - data.hitPoint).Length();
+            data.distance = distance;
+
+            if (distance < closestDistance){
                 closestDistance = distance;
                 closestData = data;
             }
+
+            hitRaysOrderedByDistance_[distance] = data;
     	}
         return closestData;
+    }
+
+    Manager::RayHitData Manager::GetNextClosestHitData(float _distance)
+    {
+        for (auto& data : hitRaysOrderedByDistance_)
+        {
+            if (data.first > _distance) return data.second;
+        }
+        return RayHitData();
     }
 
     Collider* Manager::Get(const std::string& uuid) {
