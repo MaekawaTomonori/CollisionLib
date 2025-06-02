@@ -327,7 +327,7 @@ namespace Collision{
             Detect(_ray, value);
         }
 
-        if (hitRays_.empty())return {};
+        if (hitRays_.empty())return {.uuid= "", .hitPoint= _ray->GetOrigin() + _ray->GetDirection() * _ray->GetLength()};
 
     	for (const auto& data : hitRays_){
             if (float distance = (_ray->GetOrigin() - data.hitPoint).Length(); distance < closestDistance){

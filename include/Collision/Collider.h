@@ -9,9 +9,6 @@
 namespace Collision{
 	class Manager;
 	class Collider;
-	class Sphere;
-	class AABB;
-	class Ray;
 
 	enum class Type{
 		Sphere,
