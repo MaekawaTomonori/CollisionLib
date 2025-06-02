@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "Collider.h"
+#include <map>
 
 namespace Collision{
     class Manager{
@@ -13,6 +14,7 @@ namespace Collision{
         struct RayHitData{
 	        std::string uuid;
             Vec3 hitPoint;
+            float distance;
         };
 
     private:
@@ -41,6 +43,7 @@ namespace Collision{
         std::mutex pendingMutex_;
 
         std::vector<RayHitData> hitRays_;
+        std::map<float, RayHitData> hitRaysOrderedByDistance_;
     public:
         Manager();
         ~Manager();
@@ -72,6 +75,7 @@ namespace Collision{
         void ProcessEvent();
 
         RayHitData RayCast(const Ray* _ray);
+        RayHitData GetNextClosestHitData(float _distance);
 
         Collider* Get(const std::string& uuid);
     private:
