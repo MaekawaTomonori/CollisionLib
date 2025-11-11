@@ -5,8 +5,6 @@
 #include <functional>
 #include <ranges>
 
-#include <EventTimer/EventTimer.h>
-
 namespace Collision{
     Manager::Manager() {
         InitThreadPool();
@@ -175,7 +173,6 @@ namespace Collision{
         uint32_t totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
         const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
 
-        EventTimer::GetInstance()->BeginEvent("Thread");
         // 各スレッドにタスクを割り当て
         for (uint32_t t = 0; t < totalTasks; ++t){
             const size_t start = t * chunkSize;
@@ -209,7 +206,6 @@ namespace Collision{
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
-        EventTimer::GetInstance()->EndEvent("Thread");
         // 結果をマージ
         {
             std::unique_lock lock(mutex_);
