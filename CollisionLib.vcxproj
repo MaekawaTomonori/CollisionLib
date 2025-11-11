@@ -21,16 +21,16 @@
   <ItemGroup>
     <ClInclude Include="include\Collision\Collider.h" />
     <ClInclude Include="include\Collision\CollisionManager.h" />
-    <ClInclude Include="include\sys\Mathematics.h" />
-    <ClInclude Include="include\sys\Singleton.h" />
-    <ClInclude Include="include\sys\System.h" />
+    <ClInclude Include="include\Collision\Mathematics.h" />
+    <ClInclude Include="src\sys\Singleton.h" />
+    <ClInclude Include="src\sys\System.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="include\Collision\Collider.cpp" />
-    <ClCompile Include="include\Collision\CollisionManager.cpp" />
-    <ClCompile Include="include\sys\Mathematics.cpp" />
-    <ClCompile Include="include\sys\Singleton.cpp" />
-    <ClCompile Include="include\sys\System.cpp" />
+    <ClCompile Include="src\Collision\Collider.cpp" />
+    <ClCompile Include="src\Collision\CollisionManager.cpp" />
+    <ClCompile Include="src\sys\Mathematics.cpp" />
+    <ClCompile Include="src\sys\Singleton.cpp" />
+    <ClCompile Include="src\sys\System.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
@@ -38,6 +38,7 @@
     <ProjectGuid>{3b4663f4-d09b-4503-aeb0-b2477444918f}</ProjectGuid>
     <RootNamespace>CollisioniLib</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>CollisionLib</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -86,12 +87,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\output\</OutDir>
-    <IntDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\bin\</IntDir>
+    <IntDir>$(ProjectDir)\out\$(Platform)\$(ProjectName)\$(Configuration)\bin\</IntDir>
     <PublicIncludeDirectories>$(ProjectDir)include;$(PublicIncludeDirectories)</PublicIncludeDirectories>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\output\</OutDir>
-    <IntDir>$(SolutionDir)\Generated\$(Platform)\$(Configuration)\bin\</IntDir>
+    <IntDir>$(ProjectDir)\out\$(Platform)\$(ProjectName)\$(Configuration)\bin\</IntDir>
     <PublicIncludeDirectories>$(ProjectDir)include;$(PublicIncludeDirectories)</PublicIncludeDirectories>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -130,7 +131,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(SolutionDir)GameProject;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -149,10 +150,11 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)include;$(SolutionDir)GameProject;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <Optimization>MinSpace</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>
