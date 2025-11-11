@@ -30,6 +30,18 @@
     <ClInclude Include="include\sys\System.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="src\sys\Singleton.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="src\sys\System.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Collision\Ray.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Collision\Mathematics.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\Collision\Collider.cpp">
@@ -45,6 +57,21 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="include\sys\System.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="src\sys\Mathematics.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="src\sys\Singleton.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="src\sys\System.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Collision\Collider.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Collision\CollisionManager.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
