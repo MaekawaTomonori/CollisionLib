@@ -1,10 +1,4 @@
-﻿################################################################################
-# この .gitignore ファイルは Microsoft(R) Visual Studio によって自動的に作成されました。
-################################################################################
-
-/.vs/CollisioniLib
-/Generated/x64/Debug/bin
-/Generated/x64/Debug/output
-/CollisioniLib.vcxproj.user
-out/
-/.vs/CollisionLib
+﻿/.vs/
+/out/
+*.vcxproj.user
+*.vcxproj.filters
