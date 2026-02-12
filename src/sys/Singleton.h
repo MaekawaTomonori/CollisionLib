@@ -15,16 +15,16 @@ class SingletonFinalizer{
 
 template <typename T>
 class Singleton final{
-	static T* instance_;
+	static std::unique_ptr<T> instance_;
 	static std::once_flag flag_;
 
-	public:
+public:
 	Singleton(const Singleton&) = delete;
 	Singleton& operator=(const Singleton&) = delete;
 
 	static T* Get();
 
-	private:
+private:
 	Singleton() = default;
 	~Singleton() = default;
 
@@ -32,25 +32,24 @@ class Singleton final{
 	static void Destroy();
 };
 
-template <typename T> T* Singleton<T>::instance_ = nullptr;
+template <typename T> std::unique_ptr<T> Singleton<T>::instance_ = nullptr;
 template <typename T> std::once_flag Singleton<T>::flag_;
 
 template <typename T>
 T* Singleton<T>::Get() {
 	std::call_once(flag_, Create);
 	assert(instance_);
-	return instance_;
+	return instance_.get();
 }
 
 template <typename T>
 void Singleton<T>::Create() {
-	instance_ = new T;
+	instance_ = std::make_unique<T>();
 	SingletonFinalizer::AddFinalizer(&Destroy);
 }
 
 template <typename T>
 void Singleton<T>::Destroy() {
-	delete instance_;
-	instance_ = nullptr;
+	instance_.reset();
 }
 
