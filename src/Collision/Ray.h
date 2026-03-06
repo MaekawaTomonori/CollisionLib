@@ -1,5 +1,5 @@
 #pragma once
-#include "sys/Mathematics.h"
+#include "Math/Vector3.hpp"
 
 namespace Collision {
     class Sphere;
@@ -21,38 +21,38 @@ namespace Collision {
          * @param origin The origin point of the ray.
          * @param direction The direction of the ray (will be normalized).
          */
-        Ray(const Vec3& origin, const Vec3& direction);
+        Ray(const Vector3& origin, const Vector3& direction);
 
         /**
          * Sets the origin point of the ray.
          * @param origin The new origin point.
          */
-        void SetOrigin(const Vec3& origin);
+        void SetOrigin(const Vector3& origin);
 
         /**
          * Sets the direction of the ray.
          * @param direction The new direction (will be normalized).
          */
-        void SetDirection(const Vec3& direction);
+        void SetDirection(const Vector3& direction);
 
         /**
          * Gets the origin point of the ray.
          * @return The origin point.
          */
-        const Vec3& GetOrigin() const;
+        const Vector3& GetOrigin() const;
 
         /**
          * Gets the direction vector of the ray.
          * @return The normalized direction vector.
          */
-        const Vec3& GetDirection() const;
+        const Vector3& GetDirection() const;
 
         /**
          * Gets point at distance along ray.
          * @param distance The distance along the ray.
          * @return The point at the specified distance.
          */
-        Vec3 GetPoint(float distance) const;
+        Vector3 GetPoint(float distance) const;
 
         /**
          * Checks if this ray intersects with a sphere.
@@ -71,7 +71,7 @@ namespace Collision {
         bool Intersect(const AABB& aabb, float* distance = nullptr) const;
 
     private:
-        Vec3 origin_;      // Ray origin point
-        Vec3 direction_;   // Normalized direction vector
+        Vector3 origin_;      // Ray origin point
+        Vector3 direction_;   // Normalized direction vector
     };
 }

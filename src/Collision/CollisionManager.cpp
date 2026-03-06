@@ -346,13 +346,21 @@ namespace Collision{
         {
             if (data.first > _distance) return data.second;
         }
-        return RayHitData();
+        return {};
     }
 
     Collider* Manager::Get(const std::string& uuid) {
         if (!colliders_.contains(uuid))return nullptr;
 
         return colliders_[uuid];
+    }
+
+    std::vector<const Collider*> Manager::GetAll() const {
+        std::shared_lock lock(mutex_);
+        std::vector<const Collider*> result;
+        result.reserve(colliders_.size());
+        for (const auto& c : colliders_ | std::views::values) result.push_back(c);
+        return result;
     }
 
     bool Manager::Filter(const Pair& pair) const {
@@ -390,10 +398,10 @@ namespace Collision{
         } 
         if (!sp1 && !sp2){
             // AABB vs AABB
-            const auto& min1 = c1->GetTranslate() - std::get<Vec3>(c1->GetSize()) * 0.5f;
-            const auto& max1 = c1->GetTranslate() + std::get<Vec3>(c1->GetSize()) * 0.5f;
-            const auto& min2 = c2->GetTranslate() - std::get<Vec3>(c2->GetSize()) * 0.5f;
-            const auto& max2 = c2->GetTranslate() + std::get<Vec3>(c2->GetSize()) * 0.5f;
+            const auto& min1 = c1->GetTranslate() - std::get<Vector3>(c1->GetSize()) * 0.5f;
+            const auto& max1 = c1->GetTranslate() + std::get<Vector3>(c1->GetSize()) * 0.5f;
+            const auto& min2 = c2->GetTranslate() - std::get<Vector3>(c2->GetSize()) * 0.5f;
+            const auto& max2 = c2->GetTranslate() + std::get<Vector3>(c2->GetSize()) * 0.5f;
 
             return (min1.x <= max2.x && max1.x >= min2.x) &&
                 (min1.y <= max2.y && max1.y >= min2.y) &&
@@ -402,7 +410,7 @@ namespace Collision{
         // AABB vs Sphere
         const auto& aabb = sp1 ? c2 : c1;
         const auto& sphere = sp1 ? c1 : c2;
-        const auto& aabbSize = std::get<Vec3>(static_cast<const Collider*>(aabb)->GetSize());
+        const auto& aabbSize = std::get<Vector3>(static_cast<const Collider*>(aabb)->GetSize());
         const auto& aabbTranslate = aabb->GetTranslate();
         const auto& aabbMin = aabbTranslate - (aabbSize/2.f);
         const auto& aabbMax = aabbTranslate + (aabbSize/2.f);
@@ -425,21 +433,21 @@ namespace Collision{
     }
 
     void Manager::RayAABB(const Ray* ray, const Collider* collider) {
-        const Vec3& dir = ray->GetDirection();
-        const Vec3& origin = ray->GetOrigin();
-        const Vec3& center = collider->GetTranslate();
-        const Vec3& halfSize = std::get<Vec3>(collider->GetSize()) * 0.5f;
+        const Vector3& dir = ray->GetDirection();
+        const Vector3& origin = ray->GetOrigin();
+        const Vector3& center = collider->GetTranslate();
+        const Vector3& halfSize = std::get<Vector3>(collider->GetSize()) * 0.5f;
 
-        Vec3 t1 = (center - halfSize - origin) / dir;
-        Vec3 t2 = (center + halfSize - origin) / dir;
+        Vector3 t1 = (center - halfSize - origin) / dir;
+        Vector3 t2 = (center + halfSize - origin) / dir;
 
-        Vec3 tminVec = {
+        Vector3 tminVec = {
 			std::min(t1.x, t2.x),
 			std::min(t1.y, t2.y),
         	std::min(t1.z, t2.z),
 		};
 
-        Vec3 tmaxVec = {
+        Vector3 tmaxVec = {
             std::max(t1.x, t2.x),
             std::max(t1.y, t2.y),
             std::max(t1.z, t2.z),
@@ -487,7 +495,7 @@ namespace Collision{
         if (std::holds_alternative<float>(collider->GetSize())){
             r2 = std::get<float>(collider->GetSize()) * std::get<float>(collider->GetSize());
         } else{
-            r2 = std::get<Vec3>(collider->GetSize()).x;
+            r2 = std::get<Vector3>(collider->GetSize()).x;
             r2 *= r2;
         }
 
@@ -512,7 +520,7 @@ namespace Collision{
         t = std::min(t, ray->GetLength());
 
         // 衝突点の座標を計算
-        Vec3 hit_point = ray->GetPoint(t);
+        Vector3 hit_point = ray->GetPoint(t);
 
         // 衝突データを作成
         RayHitData hitData {.uuid = collider->GetUniqueId(), .hitPoint = hit_point};

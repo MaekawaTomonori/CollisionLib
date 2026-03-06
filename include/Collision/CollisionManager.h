@@ -13,7 +13,7 @@ namespace Collision{
     public:
         struct RayHitData{
 	        std::string uuid;
-            Vec3 hitPoint;
+            Vector3 hitPoint;
             float distance;
         };
 
@@ -25,7 +25,7 @@ namespace Collision{
         std::vector<Pair> detectedPair_;
         std::vector<Pair> prePair_;
 
-        std::shared_mutex mutex_;
+        mutable std::shared_mutex mutex_;
         uint32_t maxThreadCount_ {std::thread::hardware_concurrency()};
 
         // スレッドプール関連
@@ -78,6 +78,8 @@ namespace Collision{
         RayHitData GetNextClosestHitData(float _distance);
 
         Collider* Get(const std::string& uuid);
+
+        std::vector<const Collider*> GetAll() const;
     private:
 
         void  ProcessPendingRegistrations();

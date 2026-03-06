@@ -4,139 +4,140 @@
 #include <shared_mutex>
 #include <variant>
 
-#include "Mathematics.h"
+#include "Math/Vector3.hpp"
 
 namespace Collision{
-	class Manager;
-	class Collider;
+    class Manager;
+    class Collider;
 
-	enum class Type{
-		Sphere,
-		AABB,
-		Ray,
+    enum class Type{
+        Sphere,
+        AABB,
+        Ray,
 
-		None
-	};
+        None
+    };
 
-	enum class EventType{
-		Trigger,
-		Stay,
-		Exit
-	};
+    enum class EventType{
+        Trigger,
+        Stay,
+        Exit
+    };
 
-	class Event{
-		EventType type_;
-		const Collider* other_;
+    class Event{
+        EventType type_;
+        const Collider* other_;
 
-		public:
-		Event(EventType, const Collider*);
-		EventType GetType() const;
-		const Collider* GetOther() const;
-	};
+        public:
+        Event(EventType, const Collider*);
+        EventType GetType() const;
+        const Collider* GetOther() const;
+    };
 
-	 struct Data{
-		std::string uuid;
-		Type type = Type::None;
-		uint32_t attribute = 0b0;
-		uint32_t ignore = 0b0;
-		void* owner = nullptr;
-	};
+     struct Data{
+         std::string name;
+         std::string uuid;
+         Type type = Type::None;
+         uint32_t attribute = 0b0;
+         uint32_t ignore = 0b0;
+         void* owner = nullptr;
+     };
 
-	class Collider{
-		using Size = std::variant<float, Vec3>;
-		using CBFunc = std::function<void(const Collider*)>;
+    class Collider{
+        using Size = std::variant<float, Vector3>;
+        using CBFunc = std::function<void(const Collider*)>;
+        
+        Manager* manager_ = nullptr;
 
-		std::atomic<bool> enable_ = false;
-		std::atomic<bool> registered_ = false;
-		std::shared_mutex mutex_;
+        std::atomic<bool> enable_ = false;
+        std::atomic<bool> registered_ = false;
+        std::shared_mutex mutex_;
 
-		Vec3 translate_ {};
-		Size size_ {};
+        Vector3 translate_ {};
+        Size size_ {};
+        Data data_ {};
 
-		Data data_ {};
+        std::array<CBFunc, 3> onCollisions_;
 
-		Manager* manager_ = nullptr;
+    public:
+        Collider();
+        ~Collider();
+        void Enable();
+        void Disable();
 
-		std::array<CBFunc, 3> onCollisions_;
+        bool IsEnabled() const;
+        bool IsDisabled() const;
 
-	public:
-		Collider();
-		~Collider();
-		void Enable();
-		void Disable();
+        bool IsRegistered() const;
 
-		bool IsEnabled() const;
-		bool IsDisabled() const;
+        Collider* SetName(const std::string& _name);
+        Collider* SetType(const Type _type);
+        Collider* SetTranslate(const Vector3& _translate);
+        Collider* SetSize(const Size _size);
+        Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
+        Collider* AddAttribute(uint32_t _attribute);
+        Collider* RemoveAttribute(uint32_t _attribute);
+        Collider* AddIgnore(uint32_t _ignore);
+        Collider* RemoveIgnore(uint32_t _ignore);
+        Collider* SetOwner(void* _owner);
 
-		bool IsRegistered() const;
-
-		Collider* SetType(const Type _type);
-		Collider* SetTranslate(const Vec3& _translate);
-		Collider* SetSize(const Size _size);
-		Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
-		Collider* AddAttribute(uint32_t _attribute);
-		Collider* RemoveAttribute(uint32_t _attribute);
-		Collider* AddIgnore(uint32_t _ignore);
-		Collider* RemoveIgnore(uint32_t _ignore);
-		Collider* SetOwner(void* _owner);
-
-		void OnCollision(Event _event) const;
-
-		const Data& GetData() const;
-
-		std::string GetUniqueId() const;
-		Type GetType() const;
-		uint32_t GetAttribute() const;
-		uint32_t GetIgnore() const;
-		Size GetSize() const;
-		Vec3 GetTranslate() const;
-		void* GetOwner() const;
-
-		bool operator==(const std::string& other) const {
-			return data_.uuid == other;
-		}
-	};
-
-	/// @brief
-	/// Use in ptr basically
-	/// 
-	class Ray{
-		Vec3 origin_;
-		Vec3 direction_;
-		float length_;
-		Manager* manager_ = nullptr;
-		Data data_ {};
-	public:
-		Ray();
-		Ray(const Vec3& _origin, const Vec3& _direction, float _length);
-
-		Ray* SetOrigin(const Vec3& _origin);
-		Ray* SetDirection(const Vec3& _direction);
-		Ray* SetLength(const float& _length);
-
-		Ray* SetType(const Type _type);
-		Ray* AddAttribute(uint32_t _attribute);
-		Ray* RemoveAttribute(uint32_t _attribute);
-		Ray* AddIgnore(uint32_t _ignore);
-		Ray* RemoveIgnore(uint32_t _ignore);
-		Ray* SetOwner(void* _owner);
-
-        Ray* SetDestination(const Vec3& _destination);
+        void OnCollision(Event _event) const;
 
         const Data& GetData() const;
 
-		const Vec3& GetOrigin() const;
-		const Vec3& GetDirection() const;
-		const float& GetLength() const;
+        std::string GetName() const;
+        std::string GetUniqueId() const;
+        Type GetType() const;
+        uint32_t GetAttribute() const;
+        uint32_t GetIgnore() const;
+        Size GetSize() const;
+        Vector3 GetTranslate() const;
+        void* GetOwner() const;
 
-		std::string GetUniqueId() const;
-		Type GetType() const;
-		uint32_t GetAttribute() const;
-		uint32_t GetIgnore() const;
-		void* GetOwner() const;
+        bool operator==(const std::string& other) const {
+            return data_.uuid == other;
+        }
+    };
 
-		Vec3 GetPoint(float t) const;
+    /// @brief
+    /// Use in ptr basically
+    class Ray{
+        Vector3 origin_;
+        Vector3 direction_;
+        float length_;
+        Manager* manager_ = nullptr;
+        Data data_ {};
+    public:
+        Ray();
+        Ray(const Vector3& _origin, const Vector3& _direction, float _length);
 
-		bool operator==(const std::string& other) const;
-	};
+        Ray* SetOrigin(const Vector3& _origin);
+        Ray* SetDirection(const Vector3& _direction);
+        Ray* SetLength(const float& _length);
+
+        Ray* SetType(const Type _type);
+        Ray* AddAttribute(uint32_t _attribute);
+        Ray* RemoveAttribute(uint32_t _attribute);
+        Ray* AddIgnore(uint32_t _ignore);
+        Ray* RemoveIgnore(uint32_t _ignore);
+        Ray* SetOwner(void* _owner);
+
+        Ray* SetDestination(const Vector3& _destination);
+
+        const Data& GetData() const;
+
+        const Vector3& GetOrigin() const;
+        const Vector3& GetDirection() const;
+        const float& GetLength() const;
+
+        std::string GetUniqueId() const;
+        Type GetType() const;
+        uint32_t GetAttribute() const;
+        uint32_t GetIgnore() const;
+        void* GetOwner() const;
+
+        Vector3 GetPoint(float t) const;
+
+        bool operator==(const std::string& other) const;
+    };
 }
