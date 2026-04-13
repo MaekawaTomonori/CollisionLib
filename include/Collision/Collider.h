@@ -4,6 +4,7 @@
 #include <shared_mutex>
 #include <variant>
 
+#include "ReferencePtr.hpp"
 #include "Math/Vector3.hpp"
 
 namespace Collision{
@@ -47,7 +48,7 @@ namespace Collision{
         using Size = std::variant<float, Vector3>;
         using CBFunc = std::function<void(const Collider*)>;
         
-        Manager* manager_ = nullptr;
+        GESTD::ReferencePtr<Manager> manager_ = nullptr;
 
         std::atomic<bool> enable_ = false;
         std::atomic<bool> registered_ = false;
@@ -71,9 +72,9 @@ namespace Collision{
         bool IsRegistered() const;
 
         Collider* SetName(const std::string& _name);
-        Collider* SetType(const Type _type);
+        Collider* SetType(Type _type);
         Collider* SetTranslate(const Vector3& _translate);
-        Collider* SetSize(const Size _size);
+        Collider* SetSize(Size _size);
         Collider* SetEvent(EventType _event, std::function<void(const Collider*)> _callback);
         Collider* AddAttribute(uint32_t _attribute);
         Collider* RemoveAttribute(uint32_t _attribute);
@@ -105,7 +106,7 @@ namespace Collision{
         Vector3 origin_;
         Vector3 direction_;
         float length_;
-        Manager* manager_ = nullptr;
+        GESTD::ReferencePtr<Manager> manager_ = nullptr;
         Data data_ {};
     public:
         Ray();
@@ -115,7 +116,7 @@ namespace Collision{
         Ray* SetDirection(const Vector3& _direction);
         Ray* SetLength(const float& _length);
 
-        Ray* SetType(const Type _type);
+        Ray* SetType(Type _type);
         Ray* AddAttribute(uint32_t _attribute);
         Ray* RemoveAttribute(uint32_t _attribute);
         Ray* AddIgnore(uint32_t _ignore);
