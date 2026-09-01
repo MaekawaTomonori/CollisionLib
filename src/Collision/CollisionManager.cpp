@@ -4,8 +4,80 @@
 #include <queue>
 #include <functional>
 #include <ranges>
+#include <type_traits>
+
+#include "Math/MathUtils.hpp"
 
 namespace Collision{
+    namespace{
+        /**
+         * コライダーのtranslate(Capsuleなら始点)から、その形状が到達しうる最大距離を返す。
+         * 広域カリングの閾値を形状ごとに正しく求めるために使う。
+         */
+        float BoundingRadius(const Collider* _collider) {
+            return std::visit([](const auto& _shape) -> float {
+                using Shape = std::decay_t<decltype(_shape)>;
+                if constexpr (std::is_same_v<Shape, SphereShape>){
+                    return _shape.radius;
+                } else if constexpr (std::is_same_v<Shape, AabbShape>){
+                    // 中心から最も遠い頂点までの距離(対角線の半分)
+                    return _shape.size.Length() * 0.5f;
+                } else if constexpr (std::is_same_v<Shape, CapsuleShape>){
+                    // 始点から最も遠い、終点側キャップの表面までの距離
+                    return _shape.offset.Length() + _shape.radius;
+                }
+            }, _collider->GetSize());
+        }
+
+        bool DetectCapsuleSphere(const Collider* _capsule, const Collider* _sphere) {
+            const auto& capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
+            const Vector3 start = _capsule->GetTranslate();
+            const Vector3 end = start + capsuleShape.offset;
+
+            const Vector3 closest = MathUtils::ClosestPointOnSegment(_sphere->GetTranslate(), start, end);
+            const float radiusSum = capsuleShape.radius + std::get<SphereShape>(_sphere->GetSize()).radius;
+
+            return MathUtils::SquaredDistance(closest, _sphere->GetTranslate()) <= radiusSum * radiusSum;
+        }
+
+        /**
+         * カプセルとAABBの最近傍点を反復法(alternating projection)で近似的に求める。
+         * 線分・AABBはどちらも凸形状なので、数回の反復で実用上十分収束する。
+         */
+        bool DetectCapsuleAabb(const Collider* _capsule, const Collider* _aabb) {
+            const auto& capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
+            const Vector3 start = _capsule->GetTranslate();
+            const Vector3 end = start + capsuleShape.offset;
+
+            const Vector3& aabbSize = std::get<AabbShape>(_aabb->GetSize()).size;
+            const Vector3& aabbCenter = _aabb->GetTranslate();
+            const Vector3 aabbMin = aabbCenter - aabbSize * 0.5f;
+            const Vector3 aabbMax = aabbCenter + aabbSize * 0.5f;
+
+            Vector3 pointOnSegment = start;
+            Vector3 pointOnBox = MathUtils::Clamp(pointOnSegment, aabbMin, aabbMax);
+            for (int i = 0; i < 4; ++i){
+                pointOnSegment = MathUtils::ClosestPointOnSegment(pointOnBox, start, end);
+                pointOnBox = MathUtils::Clamp(pointOnSegment, aabbMin, aabbMax);
+            }
+
+            return MathUtils::SquaredDistance(pointOnSegment, pointOnBox) <= capsuleShape.radius * capsuleShape.radius;
+        }
+
+        bool DetectCapsuleCapsule(const Collider* _c1, const Collider* _c2) {
+            const auto& shape1 = std::get<CapsuleShape>(_c1->GetSize());
+            const auto& shape2 = std::get<CapsuleShape>(_c2->GetSize());
+
+            const Vector3 start1 = _c1->GetTranslate();
+            const Vector3 end1 = start1 + shape1.offset;
+            const Vector3 start2 = _c2->GetTranslate();
+            const Vector3 end2 = start2 + shape2.offset;
+
+            const float radiusSum = shape1.radius + shape2.radius;
+            return MathUtils::SquaredDistanceBetweenSegments(start1, end1, start2, end2) <= radiusSum * radiusSum;
+        }
+    }
+
     Manager::Manager() {
         InitThreadPool();
     }
@@ -342,11 +414,10 @@ namespace Collision{
 
     Manager::RayHitData Manager::GetNextClosestHitData(float _distance)
     {
-        for (auto& data : hitRaysOrderedByDistance_)
-        {
-            if (data.first > _distance) return data.second;
-        }
-        return {};
+        const auto it = hitRaysOrderedByDistance_.upper_bound(_distance);
+        if (it == hitRaysOrderedByDistance_.end()) return {};
+
+        return it->second;
     }
 
     Collider* Manager::Get(const std::string& uuid) {
@@ -387,56 +458,76 @@ namespace Collision{
 
 
     bool Manager::Detect(const Collider* c1, const Collider* c2) {
-        float distance = (c1->GetTranslate() - c2->GetTranslate()).Length();
-        if (100.f < distance)return false;
+        const float distance = (c1->GetTranslate() - c2->GetTranslate()).Length();
+        if (distance > BoundingRadius(c1) + BoundingRadius(c2)) return false;
 
-    	bool sp1 = std::holds_alternative<float>(c1->GetSize());
-        bool sp2 = std::holds_alternative<float>(c2->GetSize());
-        if (sp1 && sp2){
-            // Sphere vs Sphere
-            return distance <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
-        } 
-        if (!sp1 && !sp2){
-            // AABB vs AABB
-            const auto& min1 = c1->GetTranslate() - std::get<Vector3>(c1->GetSize()) * 0.5f;
-            const auto& max1 = c1->GetTranslate() + std::get<Vector3>(c1->GetSize()) * 0.5f;
-            const auto& min2 = c2->GetTranslate() - std::get<Vector3>(c2->GetSize()) * 0.5f;
-            const auto& max2 = c2->GetTranslate() + std::get<Vector3>(c2->GetSize()) * 0.5f;
+        const Type type1 = c1->GetType();
+        const Type type2 = c2->GetType();
+
+        if (type1 == Type::Sphere && type2 == Type::Sphere){
+            return distance <= (std::get<SphereShape>(c1->GetSize()).radius + std::get<SphereShape>(c2->GetSize()).radius);
+        }
+        if (type1 == Type::AABB && type2 == Type::AABB){
+            const auto& min1 = c1->GetTranslate() - std::get<AabbShape>(c1->GetSize()).size * 0.5f;
+            const auto& max1 = c1->GetTranslate() + std::get<AabbShape>(c1->GetSize()).size * 0.5f;
+            const auto& min2 = c2->GetTranslate() - std::get<AabbShape>(c2->GetSize()).size * 0.5f;
+            const auto& max2 = c2->GetTranslate() + std::get<AabbShape>(c2->GetSize()).size * 0.5f;
 
             return (min1.x <= max2.x && max1.x >= min2.x) &&
                 (min1.y <= max2.y && max1.y >= min2.y) &&
                 (min1.z <= max2.z && max1.z >= min2.z);
         }
-        // AABB vs Sphere
-        const auto& aabb = sp1 ? c2 : c1;
-        const auto& sphere = sp1 ? c1 : c2;
-        const auto& aabbSize = std::get<Vector3>(static_cast<const Collider*>(aabb)->GetSize());
-        const auto& aabbTranslate = aabb->GetTranslate();
-        const auto& aabbMin = aabbTranslate - (aabbSize/2.f);
-        const auto& aabbMax = aabbTranslate + (aabbSize/2.f);
-        const auto& sphereSize = std::get<float>(static_cast<const Collider*>(sphere)->GetSize());
-        const auto& sphereTranslate = sphere->GetTranslate();
+        if ((type1 == Type::Sphere && type2 == Type::AABB) || (type1 == Type::AABB && type2 == Type::Sphere)){
+            const auto& aabb = (type1 == Type::AABB) ? c1 : c2;
+            const auto& sphere = (type1 == Type::Sphere) ? c1 : c2;
 
-        return (sphereTranslate.x >= aabbMin.x - sphereSize && sphereTranslate.x <= aabbMax.x + sphereSize) &&
-            (sphereTranslate.y >= aabbMin.y - sphereSize && sphereTranslate.y <= aabbMax.y + sphereSize) &&
-            (sphereTranslate.z >= aabbMin.z - sphereSize && sphereTranslate.z <= aabbMax.z + sphereSize);
+            const auto& aabbSize = std::get<AabbShape>(aabb->GetSize()).size;
+            const auto& aabbTranslate = aabb->GetTranslate();
+            const auto& aabbMin = aabbTranslate - (aabbSize/2.f);
+            const auto& aabbMax = aabbTranslate + (aabbSize/2.f);
+            const auto& sphereSize = std::get<SphereShape>(sphere->GetSize()).radius;
+            const auto& sphereTranslate = sphere->GetTranslate();
+
+            return (sphereTranslate.x >= aabbMin.x - sphereSize && sphereTranslate.x <= aabbMax.x + sphereSize) &&
+                (sphereTranslate.y >= aabbMin.y - sphereSize && sphereTranslate.y <= aabbMax.y + sphereSize) &&
+                (sphereTranslate.z >= aabbMin.z - sphereSize && sphereTranslate.z <= aabbMax.z + sphereSize);
+        }
+        if (type1 == Type::Capsule && type2 == Type::Capsule){
+            return DetectCapsuleCapsule(c1, c2);
+        }
+        if ((type1 == Type::Capsule && type2 == Type::Sphere) || (type1 == Type::Sphere && type2 == Type::Capsule)){
+            const auto& capsule = (type1 == Type::Capsule) ? c1 : c2;
+            const auto& sphere = (type1 == Type::Sphere) ? c1 : c2;
+            return DetectCapsuleSphere(capsule, sphere);
+        }
+        if ((type1 == Type::Capsule && type2 == Type::AABB) || (type1 == Type::AABB && type2 == Type::Capsule)){
+            const auto& capsule = (type1 == Type::Capsule) ? c1 : c2;
+            const auto& aabb = (type1 == Type::AABB) ? c1 : c2;
+            return DetectCapsuleAabb(capsule, aabb);
+        }
+        return false;
     }
 
     void Manager::Detect(const Ray* ray, const Collider* collider) {
-        
-    	if (collider->GetType() == Type::AABB){
-            RayAABB(ray, collider);
-            return;
+        switch (collider->GetType()){
+            case Type::AABB:
+                RayAABB(ray, collider);
+                return;
+            case Type::Sphere:
+                RaySphere(ray, collider);
+                return;
+            default:
+                // Ray vs Capsule は未対応。SphereShape/AabbShape用のGetterを
+                // 誤って呼びbad_variant_accessを起こさないよう、ここで安全に弾く。
+                return;
         }
-        
-        RaySphere(ray, collider);
     }
 
     void Manager::RayAABB(const Ray* ray, const Collider* collider) {
         const Vector3& dir = ray->GetDirection();
         const Vector3& origin = ray->GetOrigin();
         const Vector3& center = collider->GetTranslate();
-        const Vector3& halfSize = std::get<Vector3>(collider->GetSize()) * 0.5f;
+        const Vector3& halfSize = std::get<AabbShape>(collider->GetSize()).size * 0.5f;
 
         Vector3 t1 = (center - halfSize - origin) / dir;
         Vector3 t2 = (center + halfSize - origin) / dir;
@@ -492,10 +583,11 @@ namespace Collision{
 
         // コライダーの半径の2乗
         float r2;
-        if (std::holds_alternative<float>(collider->GetSize())){
-            r2 = std::get<float>(collider->GetSize()) * std::get<float>(collider->GetSize());
+        if (std::holds_alternative<SphereShape>(collider->GetSize())){
+            const float radius = std::get<SphereShape>(collider->GetSize()).radius;
+            r2 = radius * radius;
         } else{
-            r2 = std::get<Vector3>(collider->GetSize()).x;
+            r2 = std::get<AabbShape>(collider->GetSize()).size.x;
             r2 *= r2;
         }
 
