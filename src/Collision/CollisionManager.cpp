@@ -30,7 +30,7 @@ namespace Collision{
         }
 
         bool DetectCapsuleSphere(const Collider* _capsule, const Collider* _sphere) {
-            const auto& capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
+            const auto capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
             const Vector3 start = _capsule->GetTranslate();
             const Vector3 end = start + capsuleShape.offset;
 
@@ -45,12 +45,12 @@ namespace Collision{
          * 線分・AABBはどちらも凸形状なので、数回の反復で実用上十分収束する。
          */
         bool DetectCapsuleAabb(const Collider* _capsule, const Collider* _aabb) {
-            const auto& capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
+            const auto capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
             const Vector3 start = _capsule->GetTranslate();
             const Vector3 end = start + capsuleShape.offset;
 
-            const Vector3& aabbSize = std::get<AabbShape>(_aabb->GetSize()).size;
-            const Vector3& aabbCenter = _aabb->GetTranslate();
+            const Vector3 aabbSize = std::get<AabbShape>(_aabb->GetSize()).size;
+            const Vector3 aabbCenter = _aabb->GetTranslate();
             const Vector3 aabbMin = aabbCenter - aabbSize * 0.5f;
             const Vector3 aabbMax = aabbCenter + aabbSize * 0.5f;
 
@@ -65,8 +65,8 @@ namespace Collision{
         }
 
         bool DetectCapsuleCapsule(const Collider* _c1, const Collider* _c2) {
-            const auto& shape1 = std::get<CapsuleShape>(_c1->GetSize());
-            const auto& shape2 = std::get<CapsuleShape>(_c2->GetSize());
+            const auto shape1 = std::get<CapsuleShape>(_c1->GetSize());
+            const auto shape2 = std::get<CapsuleShape>(_c2->GetSize());
 
             const Vector3 start1 = _c1->GetTranslate();
             const Vector3 end1 = start1 + shape1.offset;
@@ -481,12 +481,12 @@ namespace Collision{
             const auto& aabb = (type1 == Type::AABB) ? c1 : c2;
             const auto& sphere = (type1 == Type::Sphere) ? c1 : c2;
 
-            const auto& aabbSize = std::get<AabbShape>(aabb->GetSize()).size;
-            const auto& aabbTranslate = aabb->GetTranslate();
-            const auto& aabbMin = aabbTranslate - (aabbSize/2.f);
-            const auto& aabbMax = aabbTranslate + (aabbSize/2.f);
-            const auto& sphereSize = std::get<SphereShape>(sphere->GetSize()).radius;
-            const auto& sphereTranslate = sphere->GetTranslate();
+            const auto aabbSize = std::get<AabbShape>(aabb->GetSize()).size;
+            const auto aabbTranslate = aabb->GetTranslate();
+            const auto aabbMin = aabbTranslate - (aabbSize/2.f);
+            const auto aabbMax = aabbTranslate + (aabbSize/2.f);
+            const auto sphereSize = std::get<SphereShape>(sphere->GetSize()).radius;
+            const auto sphereTranslate = sphere->GetTranslate();
 
             return (sphereTranslate.x >= aabbMin.x - sphereSize && sphereTranslate.x <= aabbMax.x + sphereSize) &&
                 (sphereTranslate.y >= aabbMin.y - sphereSize && sphereTranslate.y <= aabbMax.y + sphereSize) &&
