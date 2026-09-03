@@ -1,11 +1,123 @@
 #include "Collision/CollisionManager.h"
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <condition_variable>
 #include <queue>
 #include <functional>
 #include <ranges>
+#include <type_traits>
+#include <unordered_map>
+
+#include "Math/MathUtils.hpp"
 
 namespace Collision{
+    namespace{
+        /**
+         * コライダーのtranslate(Capsuleなら始点)から その形状が到達しうる最大距離を返す
+         * 広域カリングの閾値を形状ごとに正しく求めるために使う
+         */
+        float BoundingRadius(const Collider* _collider) {
+            return std::visit([](const auto& _shape) -> float {
+                using Shape = std::decay_t<decltype(_shape)>;
+                if constexpr (std::is_same_v<Shape, SphereShape>){
+                    return _shape.radius;
+                } else if constexpr (std::is_same_v<Shape, AabbShape>){
+                    // 中心から最も遠い頂点までの距離(対角線の半分)
+                    return _shape.size.Length() * 0.5f;
+                } else if constexpr (std::is_same_v<Shape, CapsuleShape>){
+                    // 始点から最も遠い 終点側キャップの表面までの距離
+                    return _shape.offset.Length() + _shape.radius;
+                }
+            }, _collider->GetSize());
+        }
+
+        /**
+         * ブロードフェーズ用の均一グリッドのセル座標
+         */
+        struct CellCoord{
+            int32_t x, y, z;
+            bool operator==(const CellCoord&) const = default;
+        };
+
+        struct CellCoordHash{
+            size_t operator()(const CellCoord& _coord) const noexcept {
+                size_t h = std::hash<int32_t>{}(_coord.x);
+                h ^= std::hash<int32_t>{}(_coord.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<int32_t>{}(_coord.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                return h;
+            }
+        };
+
+        CellCoord ToCellCoord(const Vector3& _pos, float _cellSize) {
+            return CellCoord{
+                static_cast<int32_t>(std::floor(_pos.x / _cellSize)),
+                static_cast<int32_t>(std::floor(_pos.y / _cellSize)),
+                static_cast<int32_t>(std::floor(_pos.z / _cellSize))
+            };
+        }
+
+        /**
+         * 隣接26セルのうち前方13方向のみを辿る
+         * 各セルペアを1度だけ処理するための一方向オフセット
+         */
+        constexpr std::array<CellCoord, 13> kForwardCellOffsets = {{
+            {1,-1,-1},{1,-1,0},{1,-1,1},
+            {1, 0,-1},{1, 0,0},{1, 0,1},
+            {1, 1,-1},{1, 1,0},{1, 1,1},
+            {0, 1,-1},{0, 1,0},{0, 1,1},
+            {0, 0, 1}
+        }};
+
+        bool DetectCapsuleSphere(const Collider* _capsule, const Collider* _sphere) {
+            const auto capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
+            const Vector3 start = _capsule->GetTranslate();
+            const Vector3 end = start + capsuleShape.offset;
+
+            const Vector3 closest = MathUtils::ClosestPointOnSegment(_sphere->GetTranslate(), start, end);
+            const float radiusSum = capsuleShape.radius + std::get<SphereShape>(_sphere->GetSize()).radius;
+
+            return MathUtils::SquaredDistance(closest, _sphere->GetTranslate()) <= radiusSum * radiusSum;
+        }
+
+        /**
+         * カプセルとAABBの最近傍点を反復法(alternating projection)で近似的に求める。
+         * 線分・AABBはどちらも凸形状なので、数回の反復で実用上十分収束する。
+         */
+        bool DetectCapsuleAabb(const Collider* _capsule, const Collider* _aabb) {
+            const auto capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
+            const Vector3 start = _capsule->GetTranslate();
+            const Vector3 end = start + capsuleShape.offset;
+
+            const Vector3 aabbSize = std::get<AabbShape>(_aabb->GetSize()).size;
+            const Vector3 aabbCenter = _aabb->GetTranslate();
+            const Vector3 aabbMin = aabbCenter - aabbSize * 0.5f;
+            const Vector3 aabbMax = aabbCenter + aabbSize * 0.5f;
+
+            Vector3 pointOnSegment = start;
+            Vector3 pointOnBox = MathUtils::Clamp(pointOnSegment, aabbMin, aabbMax);
+            for (int i = 0; i < 4; ++i){
+                pointOnSegment = MathUtils::ClosestPointOnSegment(pointOnBox, start, end);
+                pointOnBox = MathUtils::Clamp(pointOnSegment, aabbMin, aabbMax);
+            }
+
+            return MathUtils::SquaredDistance(pointOnSegment, pointOnBox) <= capsuleShape.radius * capsuleShape.radius;
+        }
+
+        bool DetectCapsuleCapsule(const Collider* _c1, const Collider* _c2) {
+            const auto shape1 = std::get<CapsuleShape>(_c1->GetSize());
+            const auto shape2 = std::get<CapsuleShape>(_c2->GetSize());
+
+            const Vector3 start1 = _c1->GetTranslate();
+            const Vector3 end1 = start1 + shape1.offset;
+            const Vector3 start2 = _c2->GetTranslate();
+            const Vector3 end2 = start2 + shape2.offset;
+
+            const float radiusSum = shape1.radius + shape2.radius;
+            return MathUtils::SquaredDistanceBetweenSegments(start1, end1, start2, end2) <= radiusSum * radiusSum;
+        }
+    }
+
     Manager::Manager() {
         InitThreadPool();
     }
@@ -155,12 +267,17 @@ namespace Collision{
         // 処理前に遅延登録を適用
         ProcessPendingRegistrations();
 
-        std::vector<std::pair<std::string, Collider*>> array;
+        // BoundingRadiusはコライダーのサイズのみに依存するため ペアごとではなく
+        // コライダーごとに1回だけ計算してキャッシュする(O(n^2)ではなくO(n)にするため)
+        std::vector<std::tuple<std::string, Collider*, float>> array;
+        float maxRadius = 0.f;
         {
             std::shared_lock lock(mutex_);
             for (const auto& [key, value] : colliders_){
                 if (value->IsEnabled()){
-                    array.emplace_back(key, value);
+                    const float radius = BoundingRadius(value);
+                    maxRadius = std::max(maxRadius, radius);
+                    array.emplace_back(key, value, radius);
                 }
             }
         }
@@ -168,30 +285,71 @@ namespace Collision{
         const size_t count = array.size();
         if (count == 0) return;
 
+        // 均一グリッドによるブロードフェーズ
+        // セルサイズを最大BoundingRadiusの2倍にしておくと 衝突しうるペアは必ず
+        // 同じセルか前方13方向の隣接セルのどちらかに収まる
+        const float cellSize = std::max(maxRadius * 2.f, 0.01f);
+
+        std::unordered_map<CellCoord, std::vector<size_t>, CellCoordHash> grid;
+        grid.reserve(count);
+        for (size_t i = 0; i < count; ++i){
+            const CellCoord coord = ToCellCoord(std::get<1>(array[i])->GetTranslate(), cellSize);
+            grid[coord].push_back(i);
+        }
+
+        std::vector<CellCoord> cells;
+        cells.reserve(grid.size());
+        for (const auto& coord : grid | std::views::keys) cells.push_back(coord);
+
+        const size_t cellCount = cells.size();
+
         std::vector<std::vector<Pair>> threadResults(maxThreadCount_);
         std::atomic<uint32_t> tasksCompleted = 0;
-        uint32_t totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
-        const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
+        uint32_t totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(cellCount));
+        const size_t chunkSize = std::max(1ULL, cellCount / maxThreadCount_);
 
-        // 各スレッドにタスクを割り当て
+        // 各スレッドにセル単位でタスクを割り当て
         for (uint32_t t = 0; t < totalTasks; ++t){
             const size_t start = t * chunkSize;
-            const size_t end = std::min(start + chunkSize, count);
+            const size_t end = std::min(start + chunkSize, cellCount);
             const uint32_t threadIndex = t;
 
-            AddTask([this, &array, &threadResults, start, end, threadIndex, &tasksCompleted](){
+            AddTask([this, &array, &grid, &cells, start, end, threadIndex, &threadResults, &tasksCompleted](){
                 std::vector<Pair> localResults;
 
-                for (size_t i = start; i < end; ++i){
-                    const auto& [id1, c1] = array[i];
+                auto tryPair = [&array, &localResults](size_t _ia, size_t _ib){
+                    const auto& [id1, c1, radius1] = array[_ia];
+                    const auto& [id2, c2, radius2] = array[_ib];
 
-                    for (size_t j = i + 1; j < array.size(); ++j){
-                        const auto& [id2, c2] = array[j];
+                    if (!Filter(c1, c2)) return;
+                    if (Detect(c1, radius1, c2, radius2)){
+                        localResults.emplace_back(id1, id2);
+                    }
+                };
 
-                        if (!Filter({id1, id2})) continue;
+                for (size_t ci = start; ci < end; ++ci){
+                    const CellCoord& coord = cells[ci];
+                    const auto selfIt = grid.find(coord);
+                    if (selfIt == grid.end()) continue; // 想定外だが例外を避けて安全側に倒す
+                    const auto& members = selfIt->second;
 
-                        if (Detect(c1, c2)){
-                            localResults.emplace_back(id1, id2);
+                    // 同一セル内のペア
+                    for (size_t a = 0; a < members.size(); ++a){
+                        for (size_t b = a + 1; b < members.size(); ++b){
+                            tryPair(members[a], members[b]);
+                        }
+                    }
+
+                    // 前方13方向の隣接セルとのペア(各セルペアを1度だけ処理する)
+                    for (const auto& offset : kForwardCellOffsets){
+                        const CellCoord neighbor{coord.x + offset.x, coord.y + offset.y, coord.z + offset.z};
+                        const auto it = grid.find(neighbor);
+                        if (it == grid.end()) continue;
+
+                        for (const size_t a : members){
+                            for (const size_t b : it->second){
+                                tryPair(a, b);
+                            }
                         }
                     }
                 }
@@ -202,8 +360,10 @@ namespace Collision{
         }
 
         // すべてのタスクが完了するのを待つ
+        // 1タスクの処理時間はミリ秒未満のため sleep_for(1ms)の固定待ちだと
+        // その粒度自体が待ち時間の支配要因になってしまう。yieldでスピンウェイトする
         while (tasksCompleted < totalTasks){
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::yield();
         }
 
         // 結果をマージ
@@ -342,11 +502,10 @@ namespace Collision{
 
     Manager::RayHitData Manager::GetNextClosestHitData(float _distance)
     {
-        for (auto& data : hitRaysOrderedByDistance_)
-        {
-            if (data.first > _distance) return data.second;
-        }
-        return {};
+        const auto it = hitRaysOrderedByDistance_.upper_bound(_distance);
+        if (it == hitRaysOrderedByDistance_.end()) return {};
+
+        return it->second;
     }
 
     Collider* Manager::Get(const std::string& uuid) {
@@ -363,14 +522,7 @@ namespace Collision{
         return result;
     }
 
-    bool Manager::Filter(const Pair& pair) const {
-        const auto itr = colliders_.find(pair.first);
-        const auto otr = colliders_.find(pair.second);
-
-        if (itr == colliders_.end() || otr == colliders_.end()) return false;
-
-        const Collider* c1 = itr->second;
-        const Collider* c2 = otr->second;
+    bool Manager::Filter(const Collider* c1, const Collider* c2) {
         if (c1 == c2) return false;
         if (!c1->IsEnabled() || !c2->IsEnabled()) return false;
         if (c1->GetType() == Type::None || c2->GetType() == Type::None) return false;
@@ -386,57 +538,79 @@ namespace Collision{
     }
 
 
-    bool Manager::Detect(const Collider* c1, const Collider* c2) {
-        float distance = (c1->GetTranslate() - c2->GetTranslate()).Length();
-        if (100.f < distance)return false;
+    bool Manager::Detect(const Collider* c1, float radius1, const Collider* c2, float radius2) {
+        // sqrtを避けるため二乗距離で比較する
+        const float radiusSum = radius1 + radius2;
+        if (MathUtils::SquaredDistance(c1->GetTranslate(), c2->GetTranslate()) > radiusSum * radiusSum) return false;
 
-    	bool sp1 = std::holds_alternative<float>(c1->GetSize());
-        bool sp2 = std::holds_alternative<float>(c2->GetSize());
-        if (sp1 && sp2){
-            // Sphere vs Sphere
-            return distance <= (std::get<float>(c1->GetSize()) + std::get<float>(c2->GetSize()));
-        } 
-        if (!sp1 && !sp2){
-            // AABB vs AABB
-            const auto& min1 = c1->GetTranslate() - std::get<Vector3>(c1->GetSize()) * 0.5f;
-            const auto& max1 = c1->GetTranslate() + std::get<Vector3>(c1->GetSize()) * 0.5f;
-            const auto& min2 = c2->GetTranslate() - std::get<Vector3>(c2->GetSize()) * 0.5f;
-            const auto& max2 = c2->GetTranslate() + std::get<Vector3>(c2->GetSize()) * 0.5f;
+        const Type type1 = c1->GetType();
+        const Type type2 = c2->GetType();
+
+        if (type1 == Type::Sphere && type2 == Type::Sphere){
+            const float shapeRadiusSum = std::get<SphereShape>(c1->GetSize()).radius + std::get<SphereShape>(c2->GetSize()).radius;
+            return MathUtils::SquaredDistance(c1->GetTranslate(), c2->GetTranslate()) <= shapeRadiusSum * shapeRadiusSum;
+        }
+        if (type1 == Type::AABB && type2 == Type::AABB){
+            const auto& min1 = c1->GetTranslate() - std::get<AabbShape>(c1->GetSize()).size * 0.5f;
+            const auto& max1 = c1->GetTranslate() + std::get<AabbShape>(c1->GetSize()).size * 0.5f;
+            const auto& min2 = c2->GetTranslate() - std::get<AabbShape>(c2->GetSize()).size * 0.5f;
+            const auto& max2 = c2->GetTranslate() + std::get<AabbShape>(c2->GetSize()).size * 0.5f;
 
             return (min1.x <= max2.x && max1.x >= min2.x) &&
                 (min1.y <= max2.y && max1.y >= min2.y) &&
                 (min1.z <= max2.z && max1.z >= min2.z);
         }
-        // AABB vs Sphere
-        const auto& aabb = sp1 ? c2 : c1;
-        const auto& sphere = sp1 ? c1 : c2;
-        const auto& aabbSize = std::get<Vector3>(static_cast<const Collider*>(aabb)->GetSize());
-        const auto& aabbTranslate = aabb->GetTranslate();
-        const auto& aabbMin = aabbTranslate - (aabbSize/2.f);
-        const auto& aabbMax = aabbTranslate + (aabbSize/2.f);
-        const auto& sphereSize = std::get<float>(static_cast<const Collider*>(sphere)->GetSize());
-        const auto& sphereTranslate = sphere->GetTranslate();
+        if ((type1 == Type::Sphere && type2 == Type::AABB) || (type1 == Type::AABB && type2 == Type::Sphere)){
+            const auto& aabb = (type1 == Type::AABB) ? c1 : c2;
+            const auto& sphere = (type1 == Type::Sphere) ? c1 : c2;
 
-        return (sphereTranslate.x >= aabbMin.x - sphereSize && sphereTranslate.x <= aabbMax.x + sphereSize) &&
-            (sphereTranslate.y >= aabbMin.y - sphereSize && sphereTranslate.y <= aabbMax.y + sphereSize) &&
-            (sphereTranslate.z >= aabbMin.z - sphereSize && sphereTranslate.z <= aabbMax.z + sphereSize);
+            const auto aabbSize = std::get<AabbShape>(aabb->GetSize()).size;
+            const auto aabbTranslate = aabb->GetTranslate();
+            const auto aabbMin = aabbTranslate - (aabbSize/2.f);
+            const auto aabbMax = aabbTranslate + (aabbSize/2.f);
+            const auto sphereSize = std::get<SphereShape>(sphere->GetSize()).radius;
+            const auto sphereTranslate = sphere->GetTranslate();
+
+            return (sphereTranslate.x >= aabbMin.x - sphereSize && sphereTranslate.x <= aabbMax.x + sphereSize) &&
+                (sphereTranslate.y >= aabbMin.y - sphereSize && sphereTranslate.y <= aabbMax.y + sphereSize) &&
+                (sphereTranslate.z >= aabbMin.z - sphereSize && sphereTranslate.z <= aabbMax.z + sphereSize);
+        }
+        if (type1 == Type::Capsule && type2 == Type::Capsule){
+            return DetectCapsuleCapsule(c1, c2);
+        }
+        if ((type1 == Type::Capsule && type2 == Type::Sphere) || (type1 == Type::Sphere && type2 == Type::Capsule)){
+            const auto& capsule = (type1 == Type::Capsule) ? c1 : c2;
+            const auto& sphere = (type1 == Type::Sphere) ? c1 : c2;
+            return DetectCapsuleSphere(capsule, sphere);
+        }
+        if ((type1 == Type::Capsule && type2 == Type::AABB) || (type1 == Type::AABB && type2 == Type::Capsule)){
+            const auto& capsule = (type1 == Type::Capsule) ? c1 : c2;
+            const auto& aabb = (type1 == Type::AABB) ? c1 : c2;
+            return DetectCapsuleAabb(capsule, aabb);
+        }
+        return false;
     }
 
     void Manager::Detect(const Ray* ray, const Collider* collider) {
-        
-    	if (collider->GetType() == Type::AABB){
-            RayAABB(ray, collider);
-            return;
+        switch (collider->GetType()){
+            case Type::AABB:
+                RayAABB(ray, collider);
+                return;
+            case Type::Sphere:
+                RaySphere(ray, collider);
+                return;
+            default:
+                // Ray vs Capsule は未対応。SphereShape/AabbShape用のGetterを
+                // 誤って呼びbad_variant_accessを起こさないよう、ここで安全に弾く。
+                return;
         }
-        
-        RaySphere(ray, collider);
     }
 
     void Manager::RayAABB(const Ray* ray, const Collider* collider) {
         const Vector3& dir = ray->GetDirection();
         const Vector3& origin = ray->GetOrigin();
         const Vector3& center = collider->GetTranslate();
-        const Vector3& halfSize = std::get<Vector3>(collider->GetSize()) * 0.5f;
+        const Vector3& halfSize = std::get<AabbShape>(collider->GetSize()).size * 0.5f;
 
         Vector3 t1 = (center - halfSize - origin) / dir;
         Vector3 t2 = (center + halfSize - origin) / dir;
@@ -492,10 +666,11 @@ namespace Collision{
 
         // コライダーの半径の2乗
         float r2;
-        if (std::holds_alternative<float>(collider->GetSize())){
-            r2 = std::get<float>(collider->GetSize()) * std::get<float>(collider->GetSize());
+        if (std::holds_alternative<SphereShape>(collider->GetSize())){
+            const float radius = std::get<SphereShape>(collider->GetSize()).radius;
+            r2 = radius * radius;
         } else{
-            r2 = std::get<Vector3>(collider->GetSize()).x;
+            r2 = std::get<AabbShape>(collider->GetSize()).size.x;
             r2 *= r2;
         }
 
