@@ -93,11 +93,12 @@ namespace Collision{
         void WorkerThread();
 
         /**
-         * ペアがフィルター条件に一致するか確認します。
-         * @param pair 確認するペア
+         * 2つのコライダーがフィルター条件に一致するか確認します。
+         * @param c1 1つ目のコライダー
+         * @param c2 2つ目のコライダー
          * @return フィルター条件に一致する場合はtrue
          */
-        bool Filter(const Pair& pair) const;
+        static bool Filter(const Collider* c1, const Collider* c2);
 
 	    static bool Filter(const Data& data, const Data& other);
 
@@ -107,7 +108,7 @@ namespace Collision{
          * @param c2 2つ目のコライダー
          * @return 衝突している場合はtrue
          */
-        static bool Detect(const Collider* c1, const Collider* c2);
+        static bool Detect(const Collider* c1, float radius1, const Collider* c2, float radius2);
 	    void Detect(const Ray* ray, const Collider* collider);
         void RayAABB(const Ray* ray, const Collider* collider);
         void RaySphere(const Ray* ray, const Collider* collider);

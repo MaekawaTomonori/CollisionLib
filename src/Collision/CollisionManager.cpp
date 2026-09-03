@@ -1,18 +1,21 @@
 #include "Collision/CollisionManager.h"
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <condition_variable>
 #include <queue>
 #include <functional>
 #include <ranges>
 #include <type_traits>
+#include <unordered_map>
 
 #include "Math/MathUtils.hpp"
 
 namespace Collision{
     namespace{
         /**
-         * コライダーのtranslate(Capsuleなら始点)から、その形状が到達しうる最大距離を返す。
-         * 広域カリングの閾値を形状ごとに正しく求めるために使う。
+         * コライダーのtranslate(Capsuleなら始点)から その形状が到達しうる最大距離を返す
+         * 広域カリングの閾値を形状ごとに正しく求めるために使う
          */
         float BoundingRadius(const Collider* _collider) {
             return std::visit([](const auto& _shape) -> float {
@@ -23,11 +26,48 @@ namespace Collision{
                     // 中心から最も遠い頂点までの距離(対角線の半分)
                     return _shape.size.Length() * 0.5f;
                 } else if constexpr (std::is_same_v<Shape, CapsuleShape>){
-                    // 始点から最も遠い、終点側キャップの表面までの距離
+                    // 始点から最も遠い 終点側キャップの表面までの距離
                     return _shape.offset.Length() + _shape.radius;
                 }
             }, _collider->GetSize());
         }
+
+        /**
+         * ブロードフェーズ用の均一グリッドのセル座標
+         */
+        struct CellCoord{
+            int32_t x, y, z;
+            bool operator==(const CellCoord&) const = default;
+        };
+
+        struct CellCoordHash{
+            size_t operator()(const CellCoord& _coord) const noexcept {
+                size_t h = std::hash<int32_t>{}(_coord.x);
+                h ^= std::hash<int32_t>{}(_coord.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<int32_t>{}(_coord.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                return h;
+            }
+        };
+
+        CellCoord ToCellCoord(const Vector3& _pos, float _cellSize) {
+            return CellCoord{
+                static_cast<int32_t>(std::floor(_pos.x / _cellSize)),
+                static_cast<int32_t>(std::floor(_pos.y / _cellSize)),
+                static_cast<int32_t>(std::floor(_pos.z / _cellSize))
+            };
+        }
+
+        /**
+         * 隣接26セルのうち前方13方向のみを辿る
+         * 各セルペアを1度だけ処理するための一方向オフセット
+         */
+        constexpr std::array<CellCoord, 13> kForwardCellOffsets = {{
+            {1,-1,-1},{1,-1,0},{1,-1,1},
+            {1, 0,-1},{1, 0,0},{1, 0,1},
+            {1, 1,-1},{1, 1,0},{1, 1,1},
+            {0, 1,-1},{0, 1,0},{0, 1,1},
+            {0, 0, 1}
+        }};
 
         bool DetectCapsuleSphere(const Collider* _capsule, const Collider* _sphere) {
             const auto capsuleShape = std::get<CapsuleShape>(_capsule->GetSize());
@@ -227,12 +267,17 @@ namespace Collision{
         // 処理前に遅延登録を適用
         ProcessPendingRegistrations();
 
-        std::vector<std::pair<std::string, Collider*>> array;
+        // BoundingRadiusはコライダーのサイズのみに依存するため ペアごとではなく
+        // コライダーごとに1回だけ計算してキャッシュする(O(n^2)ではなくO(n)にするため)
+        std::vector<std::tuple<std::string, Collider*, float>> array;
+        float maxRadius = 0.f;
         {
             std::shared_lock lock(mutex_);
             for (const auto& [key, value] : colliders_){
                 if (value->IsEnabled()){
-                    array.emplace_back(key, value);
+                    const float radius = BoundingRadius(value);
+                    maxRadius = std::max(maxRadius, radius);
+                    array.emplace_back(key, value, radius);
                 }
             }
         }
@@ -240,30 +285,71 @@ namespace Collision{
         const size_t count = array.size();
         if (count == 0) return;
 
+        // 均一グリッドによるブロードフェーズ
+        // セルサイズを最大BoundingRadiusの2倍にしておくと 衝突しうるペアは必ず
+        // 同じセルか前方13方向の隣接セルのどちらかに収まる
+        const float cellSize = std::max(maxRadius * 2.f, 0.01f);
+
+        std::unordered_map<CellCoord, std::vector<size_t>, CellCoordHash> grid;
+        grid.reserve(count);
+        for (size_t i = 0; i < count; ++i){
+            const CellCoord coord = ToCellCoord(std::get<1>(array[i])->GetTranslate(), cellSize);
+            grid[coord].push_back(i);
+        }
+
+        std::vector<CellCoord> cells;
+        cells.reserve(grid.size());
+        for (const auto& coord : grid | std::views::keys) cells.push_back(coord);
+
+        const size_t cellCount = cells.size();
+
         std::vector<std::vector<Pair>> threadResults(maxThreadCount_);
         std::atomic<uint32_t> tasksCompleted = 0;
-        uint32_t totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(count));
-        const size_t chunkSize = std::max(1ULL, count / maxThreadCount_);
+        uint32_t totalTasks = std::min(maxThreadCount_, static_cast<uint32_t>(cellCount));
+        const size_t chunkSize = std::max(1ULL, cellCount / maxThreadCount_);
 
-        // 各スレッドにタスクを割り当て
+        // 各スレッドにセル単位でタスクを割り当て
         for (uint32_t t = 0; t < totalTasks; ++t){
             const size_t start = t * chunkSize;
-            const size_t end = std::min(start + chunkSize, count);
+            const size_t end = std::min(start + chunkSize, cellCount);
             const uint32_t threadIndex = t;
 
-            AddTask([this, &array, &threadResults, start, end, threadIndex, &tasksCompleted](){
+            AddTask([this, &array, &grid, &cells, start, end, threadIndex, &threadResults, &tasksCompleted](){
                 std::vector<Pair> localResults;
 
-                for (size_t i = start; i < end; ++i){
-                    const auto& [id1, c1] = array[i];
+                auto tryPair = [&array, &localResults](size_t _ia, size_t _ib){
+                    const auto& [id1, c1, radius1] = array[_ia];
+                    const auto& [id2, c2, radius2] = array[_ib];
 
-                    for (size_t j = i + 1; j < array.size(); ++j){
-                        const auto& [id2, c2] = array[j];
+                    if (!Filter(c1, c2)) return;
+                    if (Detect(c1, radius1, c2, radius2)){
+                        localResults.emplace_back(id1, id2);
+                    }
+                };
 
-                        if (!Filter({id1, id2})) continue;
+                for (size_t ci = start; ci < end; ++ci){
+                    const CellCoord& coord = cells[ci];
+                    const auto selfIt = grid.find(coord);
+                    if (selfIt == grid.end()) continue; // 想定外だが例外を避けて安全側に倒す
+                    const auto& members = selfIt->second;
 
-                        if (Detect(c1, c2)){
-                            localResults.emplace_back(id1, id2);
+                    // 同一セル内のペア
+                    for (size_t a = 0; a < members.size(); ++a){
+                        for (size_t b = a + 1; b < members.size(); ++b){
+                            tryPair(members[a], members[b]);
+                        }
+                    }
+
+                    // 前方13方向の隣接セルとのペア(各セルペアを1度だけ処理する)
+                    for (const auto& offset : kForwardCellOffsets){
+                        const CellCoord neighbor{coord.x + offset.x, coord.y + offset.y, coord.z + offset.z};
+                        const auto it = grid.find(neighbor);
+                        if (it == grid.end()) continue;
+
+                        for (const size_t a : members){
+                            for (const size_t b : it->second){
+                                tryPair(a, b);
+                            }
                         }
                     }
                 }
@@ -274,8 +360,10 @@ namespace Collision{
         }
 
         // すべてのタスクが完了するのを待つ
+        // 1タスクの処理時間はミリ秒未満のため sleep_for(1ms)の固定待ちだと
+        // その粒度自体が待ち時間の支配要因になってしまう。yieldでスピンウェイトする
         while (tasksCompleted < totalTasks){
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::yield();
         }
 
         // 結果をマージ
@@ -434,14 +522,7 @@ namespace Collision{
         return result;
     }
 
-    bool Manager::Filter(const Pair& pair) const {
-        const auto itr = colliders_.find(pair.first);
-        const auto otr = colliders_.find(pair.second);
-
-        if (itr == colliders_.end() || otr == colliders_.end()) return false;
-
-        const Collider* c1 = itr->second;
-        const Collider* c2 = otr->second;
+    bool Manager::Filter(const Collider* c1, const Collider* c2) {
         if (c1 == c2) return false;
         if (!c1->IsEnabled() || !c2->IsEnabled()) return false;
         if (c1->GetType() == Type::None || c2->GetType() == Type::None) return false;
@@ -457,15 +538,17 @@ namespace Collision{
     }
 
 
-    bool Manager::Detect(const Collider* c1, const Collider* c2) {
-        const float distance = (c1->GetTranslate() - c2->GetTranslate()).Length();
-        if (distance > BoundingRadius(c1) + BoundingRadius(c2)) return false;
+    bool Manager::Detect(const Collider* c1, float radius1, const Collider* c2, float radius2) {
+        // sqrtを避けるため二乗距離で比較する
+        const float radiusSum = radius1 + radius2;
+        if (MathUtils::SquaredDistance(c1->GetTranslate(), c2->GetTranslate()) > radiusSum * radiusSum) return false;
 
         const Type type1 = c1->GetType();
         const Type type2 = c2->GetType();
 
         if (type1 == Type::Sphere && type2 == Type::Sphere){
-            return distance <= (std::get<SphereShape>(c1->GetSize()).radius + std::get<SphereShape>(c2->GetSize()).radius);
+            const float shapeRadiusSum = std::get<SphereShape>(c1->GetSize()).radius + std::get<SphereShape>(c2->GetSize()).radius;
+            return MathUtils::SquaredDistance(c1->GetTranslate(), c2->GetTranslate()) <= shapeRadiusSum * shapeRadiusSum;
         }
         if (type1 == Type::AABB && type2 == Type::AABB){
             const auto& min1 = c1->GetTranslate() - std::get<AabbShape>(c1->GetSize()).size * 0.5f;
