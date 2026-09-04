@@ -311,7 +311,8 @@ namespace Collision{
         // 各スレッドにセル単位でタスクを割り当て
         for (uint32_t t = 0; t < totalTasks; ++t){
             const size_t start = t * chunkSize;
-            const size_t end = std::min(start + chunkSize, cellCount);
+            // 最後のタスクは端数分も含めてcellCountまで確実に処理する
+            const size_t end = (t + 1 == totalTasks) ? cellCount : start + chunkSize;
             const uint32_t threadIndex = t;
 
             AddTask([this, &array, &grid, &cells, start, end, threadIndex, &threadResults, &tasksCompleted](){
